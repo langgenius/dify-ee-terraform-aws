@@ -1,0 +1,268 @@
+locals {
+  cluster_name = "dify-${var.deployment_id}-eks-cluster"
+
+  # Priority: existing_vpc_subnets > old variables > terraform created subnets
+  cluster_subnets = (
+    length(var.existing_vpc_subnets.private) > 0 ? var.existing_vpc_subnets.private :
+    length(var.eks_cluster_subnets) > 0 ? var.eks_cluster_subnets :
+    (local.create_vpc ? aws_subnet.private[*].id : [])
+  )
+
+  node_subnets = (
+    length(var.existing_vpc_subnets.private) > 0 ? var.existing_vpc_subnets.private :
+    length(var.eks_nodes_subnets) > 0 ? var.eks_nodes_subnets :
+    (local.create_vpc ? aws_subnet.private[*].id : [])
+  )
+
+  # Environment-specific disk size configuration
+  node_disk_size = var.environment == "test" ? var.eks_node_disk_size_test : var.eks_node_disk_size_prod
+
+  # Environment-specific node configuration, switches with architecture
+  # Configuration is loaded from eks_test_node_config or eks_prod_node_config variables
+  node_config = var.environment == "test" ? (
+    var.eks_arch == "amd64" ? var.eks_test_node_config.amd64 : var.eks_test_node_config.arm64
+    ) : (
+    var.eks_arch == "amd64" ? var.eks_prod_node_config.amd64 : var.eks_prod_node_config.arm64
+  )
+}
+
+# EKS Cluster IAM Role
+resource "aws_iam_role" "eks_cluster" {
+  name = "${local.cluster_name}-cluster-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          # Note: EKS service principal uses amazonaws.com even in AWS China regions
+          Service = "eks.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {
+  policy_arn = "arn:${local.aws_partition}:iam::aws:policy/AmazonEKSClusterPolicy"
+  role       = aws_iam_role.eks_cluster.name
+}
+
+# EKS Node Group IAM Role
+resource "aws_iam_role" "eks_node_group" {
+  name = "${local.cluster_name}-node-group-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.${local.dns_suffix}"
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "eks_worker_node_policy" {
+  policy_arn = "arn:${local.aws_partition}:iam::aws:policy/AmazonEKSWorkerNodePolicy"
+  role       = aws_iam_role.eks_node_group.name
+}
+
+resource "aws_iam_role_policy_attachment" "eks_cni_policy" {
+  policy_arn = "arn:${local.aws_partition}:iam::aws:policy/AmazonEKS_CNI_Policy"
+  role       = aws_iam_role.eks_node_group.name
+}
+
+resource "aws_iam_role_policy_attachment" "eks_container_registry_policy" {
+  policy_arn = "arn:${local.aws_partition}:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+  role       = aws_iam_role.eks_node_group.name
+}
+
+# EKS Cluster
+resource "aws_eks_cluster" "main" {
+  name     = local.cluster_name
+  role_arn = aws_iam_role.eks_cluster.arn
+  version  = var.cluster_version
+
+  vpc_config {
+    subnet_ids = local.cluster_subnets
+
+    # Configure endpoint access based on ELB mode
+    # - internet-facing: Enable public endpoint for easier access, also enable private for pod communication
+    # - internal: Only enable private endpoint for VPC-internal access
+    endpoint_private_access = true
+    endpoint_public_access  = var.elb_mode == "internet-facing" ? true : false
+  }
+
+  depends_on = [
+    aws_iam_role_policy_attachment.eks_cluster_policy
+  ]
+
+  tags = {
+    Name        = local.cluster_name
+    Environment = var.environment
+  }
+}
+
+# EKS Nodes Security Group
+resource "aws_security_group" "eks_nodes" {
+  name_prefix = "${local.cluster_name}-nodes-"
+  vpc_id      = local.vpc_id
+
+  ingress {
+    from_port = 0
+    to_port   = 65535
+    protocol  = "tcp"
+    self      = true
+  }
+
+  ingress {
+    from_port       = 1025
+    to_port         = 65535
+    protocol        = "tcp"
+    security_groups = [aws_eks_cluster.main.vpc_config[0].cluster_security_group_id]
+  }
+
+  ingress {
+    from_port       = 443
+    to_port         = 443
+    protocol        = "tcp"
+    security_groups = [aws_eks_cluster.main.vpc_config[0].cluster_security_group_id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name        = "${local.cluster_name}-nodes-sg"
+    Environment = var.environment
+  }
+}
+
+# Launch Template for EKS Nodes
+# Used to explicitly specify the node security group, ensuring that our custom security group is used instead of the cluster's default security group
+resource "aws_launch_template" "eks_nodes" {
+  name_prefix = "${local.cluster_name}-nodes-"
+
+  vpc_security_group_ids = [
+    aws_security_group.eks_nodes.id,
+    aws_eks_cluster.main.vpc_config[0].cluster_security_group_id
+  ]
+
+  # EBS volume configuration
+  block_device_mappings {
+    device_name = "/dev/xvda"
+    ebs {
+      volume_size           = local.node_disk_size
+      volume_type           = "gp3"
+      encrypted             = true
+      delete_on_termination = true
+    }
+  }
+
+  tag_specifications {
+    resource_type = "instance"
+    tags = merge(
+      {
+        Name        = "dify-${var.deployment_id}-node"
+        Environment = var.environment
+      },
+      # Cluster Autoscaler discovery tags (optional, for EC2 instance visibility)
+      var.install_cluster_autoscaler ? {
+        "k8s.io/cluster-autoscaler/${local.cluster_name}" = "owned"
+        "k8s.io/cluster-autoscaler/enabled"               = "true"
+      } : {}
+    )
+  }
+
+  tags = {
+    Name        = "${local.cluster_name}-nodes-launch-template"
+    Environment = var.environment
+  }
+}
+
+# EKS Node Group
+resource "aws_eks_node_group" "main" {
+  cluster_name    = aws_eks_cluster.main.name
+  node_group_name = "${local.cluster_name}-nodes"
+  node_role_arn   = aws_iam_role.eks_node_group.arn
+  subnet_ids      = local.node_subnets
+
+  scaling_config {
+    desired_size = local.node_config.desired_size
+    max_size     = local.node_config.max_size
+    min_size     = local.node_config.min_size
+  }
+
+  instance_types = local.node_config.instance_types
+  ami_type       = var.eks_arch == "amd64" ? "AL2023_x86_64_STANDARD" : "AL2023_ARM_64_STANDARD"
+
+  # Use launch template to specify node security group
+  launch_template {
+    id      = aws_launch_template.eks_nodes.id
+    version = aws_launch_template.eks_nodes.latest_version
+  }
+
+  depends_on = [
+    aws_iam_role_policy_attachment.eks_worker_node_policy,
+    aws_iam_role_policy_attachment.eks_cni_policy,
+    aws_iam_role_policy_attachment.eks_container_registry_policy,
+  ]
+
+  # CRITICAL: Cluster Autoscaler discovery tags MUST be on the Node Group (ASG level)
+  # These tags on the ASG itself allow CA to discover and manage this node group
+  tags = merge(
+    {
+      Name        = "dify-${var.deployment_id}-nodes"
+      Environment = var.environment
+    },
+    var.install_cluster_autoscaler ? {
+      "k8s.io/cluster-autoscaler/${local.cluster_name}" = "owned"
+      "k8s.io/cluster-autoscaler/enabled"               = "true"
+    } : {}
+  )
+}
+
+# ──────────────── Dynamic Tag Management ────────────────
+# Add Kubernetes cluster tags to VPC resources after EKS cluster is created
+# Note: These tags are only applied when creating a new VPC (use_existing_vpc = false)
+# For existing VPC, tags are managed in vpc.tf and controlled by auto_tag_subnets variable
+
+# Tag VPC with cluster information (only if VPC is created by this module)
+resource "aws_ec2_tag" "vpc_cluster_tag" {
+  count       = local.create_vpc ? 1 : 0
+  resource_id = local.create_vpc ? aws_vpc.main[0].id : ""
+  key         = "kubernetes.io/cluster/${local.cluster_name}"
+  value       = "shared"
+
+  depends_on = [aws_eks_cluster.main]
+}
+
+# Tag public subnets with cluster information
+resource "aws_ec2_tag" "public_subnet_cluster_tags" {
+  count       = local.create_vpc ? length(local.availability_zones) : 0
+  resource_id = local.create_vpc ? aws_subnet.public[count.index].id : ""
+  key         = "kubernetes.io/cluster/${local.cluster_name}"
+  value       = "shared"
+
+  depends_on = [aws_eks_cluster.main]
+}
+
+# Tag private subnets with cluster information
+resource "aws_ec2_tag" "private_subnet_cluster_tags" {
+  count       = local.create_vpc ? length(local.availability_zones) : 0
+  resource_id = local.create_vpc ? aws_subnet.private[count.index].id : ""
+  key         = "kubernetes.io/cluster/${local.cluster_name}"
+  value       = "shared"
+
+  depends_on = [aws_eks_cluster.main]
+}

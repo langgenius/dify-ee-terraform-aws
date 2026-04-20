@@ -1,0 +1,336 @@
+# Dify Enterprise Edition AWS Infrastructure Deployment Configuration File
+# Please modify the following configuration according to your actual situation
+
+# ──────────────── Basic Configuration ────────────────
+environment    = "test"  # or "prod"
+deployment_id  = "dev1"  # Unique identifier for this deployment (3-15 chars, lowercase alphanumeric and hyphens)
+aws_region     = "us-east-1"  # Modify according to your actual region
+aws_account_id = "123456789012"  # Please modify to your actual AWS Account ID
+
+# ──────────────── Cluster Configuration ────────────────
+cluster_version = "1.33"
+eks_arch       = "amd64"  # Options: amd64 or arm64
+
+# EKS node disk configuration
+eks_node_disk_size_test = 40  # Test environment node disk size in GB
+eks_node_disk_size_prod = 20  # Production environment node disk size in GB
+
+# EKS node group configuration for test environment
+# Modify instance_types, desired_size, max_size, min_size based on your needs
+# Note: For AWS China regions, use m6i/m6a (amd64) or m6g (arm64) instead of m7 series
+eks_test_node_config = {
+  amd64 = {
+    instance_types = ["m6i.xlarge"]  # 4 vCPU, 16 GB RAM (6th gen Intel, supported in AWS China)
+    desired_size   = 1
+    max_size       = 2
+    min_size       = 1
+  }
+  arm64 = {
+    instance_types = ["m6g.xlarge"]  # 4 vCPU, 16 GB RAM, Graviton2 (6th gen, supported in AWS China)
+    desired_size   = 1
+    max_size       = 2
+    min_size       = 1
+  }
+}
+
+# EKS node group configuration for production environment
+# Modify instance_types, desired_size, max_size, min_size based on your needs
+# Note: For AWS China regions, use m6i/m6a (amd64) or m6g (arm64) instead of m7 series
+eks_prod_node_config = {
+  amd64 = {
+    instance_types = ["m6i.2xlarge"]  # 8 vCPU, 32 GB RAM (6th gen Intel, supported in AWS China)
+    desired_size   = 6
+    max_size       = 10
+    min_size       = 6
+  }
+  arm64 = {
+    instance_types = ["m6g.2xlarge"]  # 8 vCPU, 32 GB RAM, Graviton2 (6th gen, supported in AWS China)
+    desired_size   = 6
+    max_size       = 10
+    min_size       = 6
+  }
+}
+
+# ──────────────── Network Configuration ────────────────
+# Choose one of the following options:
+
+# ┌─────────────────────────────────────────────────────────────────────────────┐
+# │ Option 1: Create New VPC (Default - Recommended for new deployments)       │
+# └─────────────────────────────────────────────────────────────────────────────┘
+use_existing_vpc = false
+vpc_cidr         = "10.0.0.0/16"
+# Note: Availability zones are automatically obtained from current region
+
+# ┌─────────────────────────────────────────────────────────────────────────────┐
+# │ Option 2: Use Existing VPC (For integration with existing infrastructure)  │
+# └─────────────────────────────────────────────────────────────────────────────┘
+# To use an existing VPC, uncomment and configure the following:
+#
+# use_existing_vpc = true
+# vpc_id           = "vpc-xxxxxxxxx"  # Required: Your existing VPC ID
+#
+# existing_vpc_subnets = {
+#   private = ["subnet-xxxxxxxx", "subnet-yyyyyyyy", "subnet-zzzzzzzz"]  # Required: Min 2 subnets in different AZs
+#   public  = ["subnet-aaaaaaaa", "subnet-bbbbbbbb", "subnet-cccccccc"]  # Required only for internet-facing mode
+# }
+#
+# auto_tag_subnets = true  # Automatically add Kubernetes tags to existing VPC resources (default: true)
+#                          # Set to false if subnets are pre-tagged or you lack tag permissions
+#                          # Note: When creating new VPC, tags are always added automatically
+#
+# ── Requirements when using existing VPC: ──
+# ✓ VPC ID must be valid and accessible
+# ✓ At least 2 private subnets in different Availability Zones (validated)
+# ✓ At least 2 public subnets if elb_mode = "internet-facing" (validated)
+# ✓ Private subnets must have route to NAT Gateway/Instance for internet access
+# ✓ Public subnets must have route to Internet Gateway
+# ✓ Sufficient IP space in subnets for EKS nodes, RDS, Redis, OpenSearch
+# ✓ Security groups must allow necessary traffic between resources
+#
+# ── Subnet Tagging: ──
+# If auto_tag_subnets = false, you MUST manually add these tags:
+#   VPC:             kubernetes.io/cluster/dify-<deployment_id>-eks-cluster = shared
+#   Private subnets: kubernetes.io/cluster/dify-<deployment_id>-eks-cluster = shared
+#                    kubernetes.io/role/internal-elb = 1
+#   Public subnets:  kubernetes.io/cluster/dify-<deployment_id>-eks-cluster = shared
+#                    kubernetes.io/role/elb = 1
+
+# ── ELB Exposure Mode ──
+# Determines whether the load balancer is accessible from internet or only within VPC
+elb_mode = "internet-facing"  # Options: "internet-facing" | "internal"
+#   - "internet-facing": Public access from internet (requires public subnets)
+#   - "internal": VPC-internal access only (private access)
+
+# ──────────────── Database Configuration ────────────────
+# Aurora PostgreSQL Serverless v2 configuration
+db_engine_version = "17.5"  # Aurora PostgreSQL version
+db_min_capacity = 0.5       # Minimum capacity (ACU) - recommended 0.5 for test environment
+db_max_capacity = 4         # Maximum capacity (ACU) - recommended 4 for test environment, can be set higher for production
+db_backup_retention_period = 7
+db_backup_window = "03:00-04:00"
+db_master_password = "DifyRdsPassword123!"
+
+# ──────────────── Database Names Configuration ────────────────
+# Database names for Dify Enterprise Edition
+# These names must match exactly what Helm values expect
+# ⚠️  Important: Do not change these names unless you understand the implications
+#     Helm values templates expect these exact database names
+db_main_database_name = "dify"                    # Main application database
+db_enterprise_database_name = "enterprise"        # Enterprise features database  
+db_audit_database_name = "audit"                  # Audit logging database
+db_plugin_daemon_database_name = "dify_plugin_daemon"  # Plugin daemon database
+
+# ElastiCache Redis configuration (Cluster Mode Disabled)
+# Automatically configured based on environment:
+# - test environment: single node mode, cache.t4g.micro, no failover
+# - prod environment: master-replica mode, user-configured instance type, automatic failover
+redis_node_type = "cache.t4g.micro"  # Only used for production environment
+redis_engine_version = "7.1"  # Redis version
+
+# OpenSearch configuration
+opensearch_instance_type = "t3.small.search"
+opensearch_instance_count = 1
+opensearch_ebs_volume_size = 20
+opensearch_engine_version = "OpenSearch_2.19"  # OpenSearch version
+opensearch_master_user_name = "admin"
+opensearch_master_user_password = "DifyOpenSearchPass123!"
+
+# ──────────────── Storage Configuration ────────────────
+# S3 bucket configuration
+s3_versioning_enabled = true
+
+# ECR repository configuration
+ecr_image_tag_mutability = "MUTABLE"
+
+# ──────────────── Kubernetes Basic Components ────────────────
+# Dify namespace
+dify_namespace = "dify"
+
+# ──────────────── Optional Components ────────────────
+# AWS Load Balancer Controller (recommended to enable)
+install_aws_load_balancer_controller = true
+aws_load_balancer_controller_version = "1.6.2"
+
+# NGINX Ingress Controller (choose one between this and ALB)
+install_nginx_ingress = false
+nginx_ingress_version = "4.8.3"
+# Cert-Manager (SSL certificate management)
+cert_manager_version = "v1.13.2"
+
+
+
+# ──────────────── Autoscaling Configuration (Optional) ────────────────
+# Enable autoscaling components for dynamic resource management
+
+# Metrics Server - Required for HPA
+# Provides CPU/memory metrics that HPA uses for scaling decisions
+install_metrics_server = false  # Set to true to enable
+metrics_server_version = "3.12.0"
+metrics_server_replicas = 2  # Production: 2 with PodDisruptionBudget, Test: 1
+
+# AWS China region overrides (if deploying to cn-north-1 or cn-northwest-1)
+# metrics_server_chart_repo = "https://kubernetes-sigs.github.io/metrics-server/"
+# metrics_server_image_registry = "xxxxx/google_containers"
+
+# Cluster Autoscaler - Automatically scales EKS nodes
+# IMPORTANT: Requires max_size > min_size in node group configuration
+install_cluster_autoscaler = false  # Set to true to enable
+cluster_autoscaler_version = "9.35.0"
+cluster_autoscaler_image_tag = "v1.28.5"  # MUST match EKS cluster version (v1.28.x for EKS 1.28)
+cluster_autoscaler_scale_down_delay = "10m"  # Wait time after scale up before considering scale down
+cluster_autoscaler_scale_down_unneeded_time = "10m"  # How long a node should be unneeded before scale down
+
+# AWS China region overrides (if deploying to cn-north-1 or cn-northwest-1)
+# cluster_autoscaler_chart_repo = "https://kubernetes.github.io/autoscaler"
+# cluster_autoscaler_image_registry = "xxxxx/google_containers"
+
+# Horizontal Pod Autoscaler (HPA) - Automatically scales Dify pods
+# IMPORTANT: HPA requires Metrics Server to be installed (set install_metrics_server = true)
+# IMPORTANT: When HPA is enabled, set static replicas to 1 in Helm values.yaml and let HPA manage the count
+# IMPORTANT: Deployments must have resource requests (cpu/memory) defined for HPA to work
+enable_hpa = false  # Set to true to enable
+
+# HPA configuration for each Dify component
+# Customize min/max replicas and target utilization based on your workload
+hpa_config = {
+  api = {
+    enabled                   = true
+    min_replicas              = 2
+    max_replicas              = 10
+    target_cpu_utilization    = 70
+    target_memory_utilization = 80
+  }
+  worker = {
+    enabled                = true
+    min_replicas           = 2
+    max_replicas           = 20
+    target_cpu_utilization = 70
+    # No memory target - scales on CPU only
+  }
+  # CRITICAL: workerBeat MUST NEVER BE SCALED - it is a singleton service
+  # workerBeat manages Celery beat scheduling and must run exactly 1 replica
+  # Running multiple replicas will cause duplicate task execution and data corruption
+  workerBeat = {
+    enabled                = false  # Must ALWAYS be false
+    deployment_name        = "dify-worker-beat"
+    min_replicas           = 1
+    max_replicas           = 1      # Must always be 1
+    target_cpu_utilization = 70
+  }
+  web = {
+    enabled                = true
+    min_replicas           = 2
+    max_replicas           = 8
+    target_cpu_utilization = 70
+  }
+  sandbox = {
+    enabled                = true
+    min_replicas           = 1
+    max_replicas           = 10
+    target_cpu_utilization = 80
+  }
+  # Enterprise components (disabled by default)
+  enterprise = {
+    enabled                = false
+    min_replicas           = 1
+    max_replicas           = 4
+    target_cpu_utilization = 70
+  }
+  gateway = {
+    enabled                = false
+    min_replicas           = 1
+    max_replicas           = 4
+    target_cpu_utilization = 70
+  }
+  plugin_daemon = {
+    enabled                = false
+    deployment_name        = "dify-plugin-daemon"  # Custom deployment name
+    min_replicas           = 1
+    max_replicas           = 4
+    target_cpu_utilization = 70
+  }
+  plugin_connector = {
+    enabled                = false
+    deployment_name        = "dify-plugin-connector"  # Custom deployment name
+    min_replicas           = 1
+    max_replicas           = 4
+    target_cpu_utilization = 70
+  }
+}
+
+# ──────────────── Important Notes ────────────────
+# 1. Please modify aws_account_id to your actual AWS Account ID
+# 2. Please modify aws_region to the AWS region where you want to deploy (availability zones will be automatically obtained)
+# 3. Database passwords are set directly in rds.tf and opensearch.tf files
+# 4. Aurora Serverless v2 uses ACU (Aurora Capacity Units) billing, no need to set instance type
+#    - 1 ACU = 2GB memory + corresponding CPU and network capacity
+#    - Test environment: 0.5-4 ACU, Production environment: 1-16 ACU or higher
+# 5. Redis is configured as Cluster Mode Disabled (non-cluster mode), automatically configured based on environment:
+#    - test environment: single node mode, cache.t4g.micro, no backup, no failover
+#    - prod environment: master-replica mode, user-configured instance type, automatic failover, Multi-AZ
+# 6. When using existing VPC, configure existing_vpc_subnets instead of individual subnet variables
+#    The EKS cluster endpoint access will be configured based on elb_mode:
+#    - internet-facing: both public and private endpoint access enabled
+#    - internal: only private endpoint access enabled
+# 7. Autoscaling configuration:
+#    - Metrics Server must be installed before HPA can function
+#    - Cluster Autoscaler image tag must match EKS cluster version (e.g., v1.28.5 for EKS 1.28)
+#    - For AWS China regions, override chart repos and image registries with China-accessible mirrors
+#    - HPA conflicts with static replicas - set replicas=1 in Helm values when HPA is enabled
+#    - Deployments must define resource requests (cpu/memory) for HPA to calculate utilization
+#
+# ──────────────── HPA Helm Values Requirement ────────────────
+# ⚠️  IMPORTANT: When HPA is enabled, you MUST add resource requests in your Dify Helm values.yaml
+#     Without resource requests, HPA will show <unknown> for CPU/memory metrics and cannot scale!
+#
+# Example configuration for Helm values.yaml (add to each HPA-enabled component):
+#
+#   api:
+#     replicas: 1  # Let HPA manage replica count
+#     resources:
+#       requests:
+#         cpu: 500m
+#         memory: 512Mi
+#       limits:
+#         cpu: 2000m
+#         memory: 2Gi
+#
+#   worker:
+#     replicas: 1
+#     resources:
+#       requests:
+#         cpu: 500m
+#         memory: 512Mi
+#       limits:
+#         cpu: 2000m
+#         memory: 2Gi
+#
+#   web:
+#     replicas: 1
+#     resources:
+#       requests:
+#         cpu: 200m
+#         memory: 256Mi
+#       limits:
+#         cpu: 1000m
+#         memory: 1Gi
+#
+#   sandbox:
+#     replicas: 1
+#     resources:
+#       requests:
+#         cpu: 500m
+#         memory: 256Mi
+#       limits:
+#         cpu: 2000m
+#         memory: 1Gi
+#
+#   workerBeat:
+#     replicas: 1  # ⚠️ CRITICAL: Must always be 1, never scale!
+#     resources:
+#       requests:
+#         cpu: 100m
+#         memory: 256Mi
+#       limits:
+#         cpu: 500m
+#         memory: 512Mi

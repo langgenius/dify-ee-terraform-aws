@@ -1,0 +1,295 @@
+###################################
+# {{local_domain}} is the domain name for dify access. Default is .local
+# {{secret_key}} is the secret key for dify access.  Use openssl rand -base64 42 to generate a random string
+# {{region}} is the region for aws access. E.g. us-east-2
+# {{account_id}} is the account id for aws access. E.g. 1234567890
+# {{deployment_id}} is the unique deployment identifier. E.g. dev1, prod1, staging
+# {{cert_uuid}} is the uuid for aws access. E.g. 12345678-1234-1234-1234-123456789012
+
+
+# {{s3_endpoint}} is the endpoint for s3 access. E.g. https://s3.us-east-2.amazonaws.com
+# {{s3_bucket_name}} is the bucket name for s3 access. E.g. dify-test-storage-t5ap12345
+
+# {{rds_address}} is the address for rds access. Default is dify-eks-cluster-aurora-postgres.cluster-12345678.us-east-2.rds.amazonaws.com
+# {{rds_password}} is the password for rds access. Default is DifyRdsPassword123!
+# {{rds_main_database_name}} is the main database name. Default is dify
+# {{rds_enterprise_database_name}} is the enterprise database name. Default is enterprise
+# {{rds_audit_database_name}} is the audit database name. Default is audit 
+# {{rds_plugin_daemon_database_name}} is the plugin daemon database name Default is dify_plugin_daemon
+#
+# {{redis_address}} is the address for redis access. Default is dify-eks-cluster-redis.xxxxxxx.ng.0001.use2.cache.amazonaws.com
+
+
+# {{opensearch_address}} is the address for opensearch access. E.g. vpc-dify-eks-cluster-opensearch-12345678.us-east-2.es.amazonaws.com
+# {{opensearch_user}} is the user for opensearch access. E.g. admin
+# {{opensearch_password}} is the password for opensearch access. E.g. DifyOpenSearchPass123!
+###################################
+global:
+  appSecretKey: '{{secret_key}}'
+  consoleApiDomain: "console.{{local_domain}}"
+  consoleWebDomain: "console.{{local_domain}}"
+  serviceApiDomain: "api.{{local_domain}}"
+  appApiDomain: "app.{{local_domain}}"
+  appWebDomain: "app.{{local_domain}}"
+  filesDomain: "upload.{{local_domain}}"
+  enterpriseDomain: "enterprise.{{local_domain}}"
+  triggerDomain: "trigger.{{local_domain}}"
+  innerApiKey: {{secret_key}} #added in 3.5.0
+  useTLS: {{isUseTLS}}
+
+ingress:
+  enabled: true
+  className: "alb"  # Use AWS ALB Ingress Controller
+  annotations: {
+    kubernetes.io/ingress.class: alb,
+    alb.ingress.kubernetes.io/scheme: {{elb_mode}},
+    alb.ingress.kubernetes.io/target-type: ip,
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]',
+    alb.ingress.kubernetes.io/ssl-redirect: '443',
+    alb.ingress.kubernetes.io/certificate-arn: 'arn:aws:acm:{{region}}:{{account_id}}:certificate/{{cert_uuid}}', # using AWS ACM certificate
+  }
+
+api:
+  replicas: 3
+  serverWorkerAmount: 1
+  serviceAccountName: "dify-api-sa"
+  innerApi:
+    apiKey: "{{secret_key}}"
+  resources:
+    limits:
+      cpu: 3000m
+      memory: 1024Mi
+    requests:
+      cpu: 1500m
+      memory: 512Mi
+worker:
+  replicas: 3
+  celeryWorkerAmount: 1
+  serviceAccountName: "dify-api-sa"
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 1024Mi
+    requests:
+      cpu: 1000m
+      memory: 512Mi
+triggerWorker:
+  replicas: 3
+  celeryWorkerAmount: 1
+  serviceAccountName: "dify-api-sa"
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 1024Mi
+    requests:
+      cpu: 1000m
+      memory: 512Mi
+workerBeat:
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1024Mi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+web:
+  replicas: 3
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1024Mi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+sandbox:
+  replicas: 3
+  apiKey: "{{secret_key}}"
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2048Mi
+    requests:
+      cpu: 500m
+      memory: 1024Mi
+enterprise:
+  replicas: 3
+  appSecretKey: "{{secret_key}}"
+  adminAPIsSecretKeySalt: "{{secret_key}}"
+  innerApi:
+    apiKey: "{{secret_key}}"
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2048Mi
+    requests:
+      cpu: 500m
+      memory: 1024Mi
+enterpriseAudit:
+  replicas: 3
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2048Mi
+    requests:
+      cpu: 500m
+      memory: 1024Mi
+enterpriseFrontend:
+  replicas: 3
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1024Mi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+ssrfProxy:
+  enabled: true
+  replicas: 3
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1024Mi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+unstructured:
+  enabled: true
+  replicas: 3
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2048Mi
+    requests:
+      cpu: 500m
+      memory: 1024Mi
+plugin_daemon:
+  replicas: 3
+  apiKey: "{{secret_key}}"
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 3072Mi
+    requests:
+      cpu: 500m
+      memory: 1536Mi
+plugin_controller:
+  replicas: 3
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2048Mi
+    requests:
+      cpu: 500m
+      memory: 1024Mi
+plugin_manager:
+  replicas: 3
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2048Mi
+    requests:
+      cpu: 500m
+      memory: 1024Mi
+plugin_connector:
+  replicas: 3
+  apiKey: "{{secret_key}}"
+  customServiceAccount: "dify-plugin-crd-sa"
+  runnerServiceAccount: "dify-plugin-runner-sa"
+  imageRepoPrefix: "{{account_id}}.dkr.ecr.{{region}}.{{awsservice_suffix}}/dify-{{deployment_id}}"
+  imageRepoType: ecr
+  ecrRegion: "{{region}}"
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2048Mi
+    requests:
+      cpu: 500m
+      memory: 1024Mi
+gateway:
+  replicas: 3
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2048Mi
+    requests:
+      cpu: 500m
+      memory: 1024Mi
+minio:
+  replicas: 1
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2048Mi
+    requests:
+      cpu: 500m
+      memory: 1024Mi
+
+###################################
+# Persistence Configration
+###################################
+persistence:
+  type: "s3"
+  s3:
+    endpoint: "{{s3_endpoint}}"
+    accessKey: ""
+    secretKey: ""
+    region: "{{region}}"
+    bucketName: "{{s3_bucket_name}}"
+    addressType: ""
+    useAwsManagedIam: true
+    useAwsS3: true
+
+###################################
+# External postgres
+###################################
+externalPostgres:
+  enabled: true
+  address: "{{rds_address}}"
+  port: 5432
+  credentials:
+    dify:
+      database: "{{rds_main_database_name}}"
+      username: "postgres"
+      password: "{{rds_password}}"
+      sslmode: "require"
+    plugin_daemon:
+      database: "{{rds_plugin_daemon_database_name}}"
+      username: "postgres"
+      password: "{{rds_password}}"
+      sslmode: "require"
+    enterprise:
+      database: "{{rds_enterprise_database_name}}"
+      username: "postgres"
+      password: "{{rds_password}}"
+      sslmode: "require"
+    audit:
+      database: "{{rds_audit_database_name}}"
+      username: "postgres"
+      password: "{{rds_password}}"
+      sslmode: "require"
+
+###################################
+# External Redis
+###################################
+externalRedis:
+  enabled: true
+  host: "{{redis_address}}"
+  port: 6379
+  username: ""
+  password: ""
+  useSSL: false
+
+###################################
+# External Qdrant
+###################################
+vectorDB:
+  useExternal: true
+  externalType: "opensearch"
+  externalOpenSearch:
+    host: "{{opensearch_address}}"
+    port: 443
+    user: "{{opensearch_user}}"
+    password: "{{opensearch_password}}"
+    useTLS: true
+
+imagePullSecrets: []

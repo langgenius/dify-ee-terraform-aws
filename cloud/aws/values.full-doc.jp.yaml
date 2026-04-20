@@ -1,0 +1,1212 @@
+# dify のデフォルト値
+# これは YAML 形式のファイルです
+# テンプレートに渡される変数を宣言します
+global:
+  # セッションクッキーの安全な署名とデータベース内の機密情報暗号化用の秘密鍵。`openssl rand -base64 42`を使用して強力なキーを生成してください
+  appSecretKey: "#REPLACE_ME#"
+  # 内部API呼び出し用の秘密鍵。`openssl rand -base64 42`を使用して強力なキーを生成してください
+  innerApiKey: "#REPLACE_ME#"
+  # 内部クラスター URL プロトコルで TLS/HTTPS 暗号化伝送を有効にするかどうか、true=HTTPS 有効、false=HTTP 使用
+  useTLS: false
+  # コンソール API のバックエンドドメイン、認証コールバック URL 構成に使用
+  # 空の場合、同じドメインを使用。例: console.dify.ai
+  consoleApiDomain: ""
+  # コンソール Web のフロントエンドドメイン、フロントエンドアドレス構成と CORS 設定に使用
+  # 空の場合、同じドメインを使用。例: console.dify.ai
+  consoleWebDomain: ""
+  # サービス API ドメイン、フロントエンドにサービス API ベース URL を表示するために使用
+  # 空の場合、同じドメインを使用。例: api.dify.ai
+  serviceApiDomain: ""
+  # WebApp API バックエンドドメイン、フロントエンド API のバックエンド URL を宣言するために使用
+  # 空の場合、同じドメインを使用。例: app.dify.ai
+  appApiDomain: ""
+  # WebApp ドメイン、フロントエンドに WebApp API ベース URL を表示するために使用。空の場合、同じドメインを使用。例: app.dify.ai
+  appWebDomain: ""
+  # ファイルプレビューまたはダウンロードドメイン、フロントエンドへのファイルプレビュー
+  # またはダウンロード URL の表示、またはマルチモーダルモデル入力として使用
+  # 偽造防止のため、画像プレビュー URL は 5 分の有効期限で署名されます
+  filesDomain: ""
+  # エンタープライズサービスドメイン、エンタープライズ版フロントエンドとバックエンド API の URL に使用
+  enterpriseDomain: ""
+  # トリガーサービスドメイン、APIとWorkerがトリガー機能に使用
+  # 空の場合、トリガー機能が正しく動作しない可能性があります。例: trigger.dify.ai
+  triggerDomain: ""
+  # 有効にすると、アプリケーション起動前にマイグレーションが実行され、マイグレーション完了後にアプリケーションが起動されます
+  dbMigrationEnabled: true
+  rag:
+    # RAG ETL タイプ、サポート: dify または Unstructured
+    etlType: "dify"
+    # キーワードデータソースストレージタイプ、データベース保存用の "database"、MinIO/S3 などのオブジェクトストレージ使用用の "object_storage" をサポート
+    keywordDataSourceType: "object_storage"
+    # RAG の最大 top-k 値
+    topKMaxValue: 10
+    # ドキュメントチャンキング長設定。長いドキュメント処理時のテキストセグメントサイズを制御するために使用
+    indexingMaxSegmentationTokensLength: 4000
+  integrations:
+    notion:
+      # Notion インポート設定、public と internal をサポート
+      integrationType: "internal"
+      # Notion OAuth アプリケーションのクライアント ID、Notion 開発者ページから取得
+      clientId: ""
+      # Notion OAuth アプリケーションのクライアントシークレット
+      clientSecret: ""
+      # Notion 内部統合用の秘密トークン
+      internalSecret: ""
+  marketplace:
+    # マーケットプレイス機能を有効にするかどうか、アプリケーションテンプレートのインストールを許可
+    enabled: true
+    # マーケットプレイスフロントエンドアクセス URL
+    url: "https://marketplace.dify.ai"
+    # マーケットプレイス API インターフェース URL
+    apiUrl: "https://marketplace.dify.ai"
+  log:
+    # ログ出力形式、text または json をサポート
+    outputFormat: "json"
+
+ingress:
+  # 外部ネットワークアクセス用の Kubernetes Ingress を有効にするかどうか
+  enabled: false
+  # IP アドレス経由でサービスにアクセスするためのホスト名として IP アドレスを使用
+  # ! 非エンタープライズ版のみサポート !
+  useIpAsHost: false
+  # Ingress コントローラーのクラス名、nginx、traefik、alb など、クラスターにインストールされているコントローラータイプに依存
+  className: ""
+  annotations:
+    {}
+    # kubernetes.io/tls-acme: "true"
+    # HTTPS プロトコル設定をここで設定、具体的な設定は使用している Ingress コントローラーに依存
+  # TLS 証明書設定リスト、HTTPS 証明書設定
+  tls: []
+
+api:
+   # API サービスを有効にするかどうか、これは Dify のコアバックエンドサービスです
+  enabled: true
+  image:
+    # イメージリポジトリアドレス、g-hsod9681プレフィックスは国内加速イメージアドレス用
+    # g-hsod9681-docker.pkg.coding.net/dify-artifact/dify/dify-api
+    repository: langgenius/dify-api
+    # Chart.yaml の appVersion を上書き、空でない場合
+    tag: "459f017de586871e9478d6198f323391d4ba378c"
+  # API サービスのレプリカ数、本番環境での高可用性のため 2 以上を推奨
+  replicas: 1
+  # CPU とメモリリソース制限設定、実際の負荷に応じて調整
+  resources: 
+    # limits:
+    #   cpu: 100m
+    #   memory: 128Mi
+    # requests:
+    #   cpu: 100m
+    #   memory: 128Mi
+  # Kubernetes サービスアカウント名、API サービスが外部リソースにアクセスする際の認証に使用
+  serviceAccountName: ""
+  # ノードセレクター、特定のラベルを持つノードに Pod をスケジュールするために使用
+  nodeSelector: {}
+  # Pod アフィニティ設定、Pod スケジューリング戦略を制御
+  affinity: {}
+  # テイント許容設定、テイントがあるノードに Pod をスケジュールできるようにする
+  tolerations: []
+  readinessProbe:
+    # サービスが使用不可とみなされるまでの連続失敗回数
+    failureThreshold: 3
+    httpGet:
+      # ヘルスチェック用の HTTP パス
+      path: /health
+      # ヘルスチェック用のポート番号
+      port: 5001
+      # 使用するプロトコル HTTP/HTTPS
+      scheme: HTTP
+    # コンテナ起動後にヘルスチェックを開始するまでの待機秒数
+    initialDelaySeconds: 30
+    # ヘルスチェックの実行間隔（秒）
+    periodSeconds: 10
+    # サービスが使用可能とみなされるまでの連続成功回数
+    successThreshold: 1
+    # 単一ヘルスチェックのタイムアウト
+    timeoutSeconds: 3
+  livenessProbe:
+    # コンテナを再起動するまでの連続失敗回数
+    failureThreshold: 3
+    httpGet:
+      path: /health
+      port: 5001
+      scheme: HTTP
+    # コンテナ起動後にライブネスチェックを開始するまでの待機時間
+    initialDelaySeconds: 60
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 3
+  extraEnv:
+  # 必要に応じて独自の環境変数を適用してください。以下はデモです。
+  # extraEnv:
+  #   - name: ENV_FROM_COMMUNITY1
+  #     value: env123
+  #   - name: ENV_FROM_COMMUNITY2
+  #     value: env123
+  # デプロイ環境識別子、PRODUCTION=本番環境、DEVELOPMENT=開発環境
+  deployEnv: "PRODUCTION"
+  # Web API クロスオリジンリクエストの許可オリジン、* はすべてのオリジンを許可することを意味
+  webApiCorsAllowOrigins: "*"
+  # コンソールクロスオリジンリクエストの許可オリジン
+  consoleCorsAllowOrigins: "*"
+  # API サーバーのワーカープロセス数、CPU コア数に基づいて調整することを推奨
+  serverWorkerAmount: 1
+  # Dify の新バージョン更新チェック用 URL アドレス
+  checkUpdateUrl: "https://updates.dify.ai"
+  innerApi:
+    # サービス間通信用の内部 API を有効にするかどうか
+    enabled: true
+    # 内部 API アクセスキー、本番環境では必ず置き換える必要があります
+    apiKey: "#REPLACE_ME#"
+  oauth:
+    # OAuth 認証リダイレクトパス
+    redirectPath: "/console/api/oauth/authorize"
+    github:
+      # GitHub OAuth アプリケーションクライアント ID
+      clientId: ""
+      # GitHub OAuth アプリケーションクライアントシークレット
+      clientSecret: ""
+    google:
+      # Google OAuth アプリケーションクライアント ID
+      clientId: ""
+      # Google OAuth アプリケーションクライアントシークレット
+      clientSecret: ""
+  db:
+    # データベースコネクションプールの最大接続数、同時実行数に応じて調整
+    poolSize: 250
+    # コネクションプール内の接続リサイクル時間（秒）、長時間アイドル状態の接続を防止
+    poolRecycle: 3600
+  limits:
+    # アップロードファイルサイズ制限（MB）
+    uploadFileSize: 15
+    # アップロードファイルバッチ数制限
+    uploadFileBatchCount: 5
+    # アップロード画像ファイルサイズ制限（MB）
+    uploadImageFileSize: 5
+  sentry:
+    # Sentry エラー監視とパフォーマンストレーシングを有効にするかどうか
+    enabled: false
+    # Sentry プロジェクト DSN（Data Source Name）
+    dsn: ""
+    # パフォーマンストレーシングサンプルレート、0.0-1.0の間
+    tracesSampleRate: 1.0
+    # パフォーマンスプロファイリングサンプルレート、0.0-1.0の間
+    profilesSampleRate: 1.0
+  positionTool:
+    # 固定表示ツール位置設定
+    pins: ""
+    # 含まれるツールのリスト
+    includes: ""
+    # 除外されるツールのリスト
+    excludes: ""
+  positionProvider:
+    # 固定表示モデルプロバイダー位置
+    pins: ""
+    # 含まれるプロバイダーのリスト
+    includes: ""
+    # 除外されるプロバイダーのリスト
+    excludes: ""
+
+worker:
+  # 非同期タスク処理用の Worker サービスを有効にするかどうか
+  enabled: true
+  image:
+    # イメージリポジトリアドレス、g-hsod9681プレフィックスは国内加速イメージアドレス用
+    # g-hsod9681-docker.pkg.coding.net/dify-artifact/dify/dify-api
+    repository: langgenius/dify-api
+  # Worker サービスのレプリカ数
+  replicas: 1
+  resources: {}
+  serviceAccountName: ""
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  # Worker サービスは通常 HTTP ヘルスチェックを必要としません
+  readinessProbe: {}
+  livenessProbe: {}
+  extraEnv:
+  # Celery ワーカープロセス数、CPU コア数に基づいて調整することを推奨
+  celeryWorkerAmount: 1
+  db:
+    # Worker データベースコネクションプール設定
+    poolSize: 250
+    poolRecycle: 3600
+  sentry:
+    # Worker Sentry 監視設定
+    enabled: false
+    dsn: ""
+    tracesSampleRate: 1.0
+    profilesSampleRate: 1.0
+
+triggerWorker:
+  # トリガーWorkerサービスを有効にするかどうか、スケジュールタスクとトリガー関連の非同期タスクの処理に使用
+  enabled: true
+  image:
+    # g-hsod9681-docker.pkg.coding.net/dify-artifact/dify/dify-api
+    repository: langgenius/dify-api
+  # トリガーWorkerサービスのレプリカ数
+  replicas: 1
+  resources: {}
+  serviceAccountName: ""
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  readinessProbe: {}
+  livenessProbe: {}
+  extraEnv:
+  # Celery ワーカープロセス数
+  celeryWorkerAmount: 1
+  db:
+    # トリガーWorkerデータベースコネクションプール設定
+    poolSize: 250
+    poolRecycle: 3600
+  sentry:
+    enabled: false
+    dsn: ""
+    tracesSampleRate: 1.0
+    profilesSampleRate: 1.0
+  code:
+    # トリガーWorkerサンドボックス実行関連制限
+    maxStringArrayLength: 500
+    maxObjectArrayLength: 500
+    maxNumberArrayLength: 500
+
+workerBeat:
+  # Worker Beatサービスを有効にするかどうか、定期タスクのスケジューリングに使用
+  enabled: true
+  image:
+    # g-hsod9681-docker.pkg.coding.net/dify-artifact/dify/dify-api
+    repository: langgenius/dify-api
+  resources: {}
+  serviceAccountName: ""
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  readinessProbe: {}
+  livenessProbe: {}
+  extraEnv:
+  db:
+    poolSize: 30
+    poolRecycle: 3600
+  # ワークフローログクリーンアップを有効にするかどうか
+  enableWorkflowLogCleanup: false
+
+web:
+  # Web フロントエンドサービスを有効にするかどうか
+  enabled: true
+  image:
+    # イメージリポジトリアドレス、g-hsod9681プレフィックスは国内加速イメージアドレス用
+    # g-hsod9681-docker.pkg.coding.net/dify-artifact/dify/dify-web
+    repository: langgenius/dify-web
+  replicas: 1
+  resources: {}
+  serviceAccountName: ""
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  readinessProbe:
+    initialDelaySeconds: 3
+    failureThreshold: 3
+    periodSeconds: 10
+    successThreshold: 1
+    tcpSocket:
+      # Next.js フロントエンドサービスのデフォルトポート
+      port: 3000
+    timeoutSeconds: 1
+  livenessProbe:
+    failureThreshold: 3
+    periodSeconds: 10
+    successThreshold: 1
+    tcpSocket:
+      port: 3000
+    timeoutSeconds: 1
+  extraEnv:
+  sentry:
+    # フロントエンド Sentry 監視設定
+    enabled: false
+    dsn: ""
+    tracesSampleRate: 1.0
+    profilesSampleRate: 1.0
+
+sandbox:
+  # ユーザーコードを安全に実行するためのコード実行サンドボックスサービスを有効にするかどうか
+  enabled: true
+  image:
+    # g-hsod9681-docker.pkg.coding.net/dify-artifact/dify/dify-sandbox
+    repository: langgenius/dify-sandbox
+    tag: "0.2.12"
+  replicas: 1
+  resources: {}
+  serviceAccountName: ""
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  readinessProbe:
+    # サンドボックスは起動が遅いので、より多くの失敗試行を許可
+    failureThreshold: 60
+    initialDelaySeconds: 3
+    # より高いチェック頻度
+    periodSeconds: 3
+    successThreshold: 1
+    tcpSocket:
+      # サンドボックスサービスポート
+      port: 8194
+    timeoutSeconds: 3
+  livenessProbe:
+    failureThreshold: 3
+    periodSeconds: 3
+    successThreshold: 1
+    tcpSocket:
+      port: 8194
+    timeoutSeconds: 1
+  extraEnv:
+  # サンドボックス API アクセスキー、本番環境では必ず置き換える必要があります
+  apiKey: "#REPLACE_ME#"
+  # コード実行タイムアウト（秒）
+  workerTimeout: 15
+  # サンドボックスの最大ワーカープロセス数
+  maxWorkers: 4
+  # サンドボックスの最大リクエスト数
+  maxRequests: 50
+  pythonRequirements: |
+    # requirements.txt ファイルの内容
+    # 例:
+    # fastapi==0.104.1
+    # pydantic==2.5.1
+
+enterprise:
+  # エンタープライズ版機能を有効にするかどうか
+  enabled: true
+  image:
+    # g-hsod9681-docker.pkg.coding.net/dify-artifact/dify/dify-enterprise
+    repository: langgenius/dify-enterprise
+    tag: "0.14.4"
+  replicas: 1
+  resources: {}
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  readinessProbe:
+    failureThreshold: 3
+    httpGet:
+      # エンタープライズ版ヘルスチェックパス
+      path: /v1/healthz
+      # エンタープライズ版サービスポート
+      port: 8082
+      scheme: HTTP
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 3
+  livenessProbe:
+    failureThreshold: 3
+    httpGet:
+      path: /v1/healthz
+      port: 8082
+      scheme: HTTP
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 3
+  extraEnv:
+  appSecretKey: "#REPLACE_ME#"
+  # 管理者 API キー用のソルト値、管理者 API キーの生成に使用
+  adminAPIsSecretKeySalt: "#REPLACE_ME#"
+  innerApi:
+    # エンタープライズ版内部 API 設定
+    enabled: true
+    apiKey: "#REPLACE_ME#"
+  # エンタープライズ版フロントエンドの CORS 許可オリジンアドレス
+  corsOrigins: "http://localhost:3000,http://localhost:3001,http://localhost:3002"
+  # エンタープライズ版専用の Kubernetes サービスアカウント
+  serviceAccountName: "dify-enterprise"
+  # ライセンス検証モード: online=オンライン検証、offline=オフライン検証
+  licenseMode: "online"
+  # ライセンス検証サーバーアドレス
+  licenseServer: "https://licenses.dify.ai/server"
+  # コンソール SSO が SSL 証明書検証をスキップするかどうか（本番環境では false を推奨）
+  consoleSSOSkipCertVerify: false
+  # Web SSO が SSL 証明書検証をスキップするかどうか
+  webSSOSkipCertVerify: false
+  # ダッシュボードSSOがSSL証明書検証をスキップするかどうか
+  dashboardSSOSkipCertVerify: false
+  # HTTP サーバーリクエストタイムアウト
+  serverTimeout: "60s"
+  # gRPC サーバーリクエストタイムアウト
+  grpcServerTimeout: "60s"
+  # ワークスペース同期Cron式
+  workspaceSyncCron: "*/5 * * * *"
+  # ワークスペース同期タイムアウト
+  workspaceSyncTimeout: "30s"
+  # Base64エンコードされた32バイトAES-256キー、パスワードポリシーの暗号化に使用。`openssl rand -base64 32`で生成
+  passwordEncryptionKey: "xHBzZKP288fiIUdCkYJW5Px/16kCqkJucXue6x/97eo="
+  # プラグインマネージャークライアントタイムアウト
+  pluginManagerClientTimeout: "60s"
+
+enterpriseAudit:
+  # エンタープライズ版監査機能を有効にするかどうか、ユーザー操作とシステムイベントを記録
+  enabled: true
+  image:
+    # g-hsod9681-docker.pkg.coding.net/dify-artifact/dify/dify-audit
+    repository: langgenius/dify-audit
+  replicas: 1
+  resources: {}
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  readinessProbe:
+    failureThreshold: 3
+    httpGet:
+      path: /v1/healthz
+      # 監査サービスポート
+      port: 8083
+      scheme: HTTP
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 3
+  livenessProbe:
+    failureThreshold: 3
+    httpGet:
+      path: /v1/healthz
+      port: 8083
+      scheme: HTTP
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 3
+  extraEnv:
+  scheduler:
+    # 監査ログ固化スケジュールタスク Cron 式: 分 時 日 月 曜日
+    solidifyCheckCron: "0 0 */1 * *" # 分 時 日 月 曜日
+    # 監査ログ固化遅延日数、 90 日後に長期ストレージに固化
+    solidifyDelayDays: 90
+    # スケジューラータスクタイムアウト
+    timeout: "600s"
+  mq:
+    # メッセージキューチェック間隔
+    checkInterval: "5s"
+    # 同期闾値、この数に達するとバッチ処理をトリガー
+    syncThreshold: 200
+    # メッセージキューの最大待機時間
+    maxWait: "10s"
+  # 監査サービス HTTP タイムアウト
+  serverTimeout: "60s"
+  # 監査サービス gRPC タイムアウト
+  grpcServerTimeout: "60s"
+  # 監査ログダウンロードタイムアウト
+  downloadTimeout: "60s"
+
+enterpriseFrontend:
+  # エンタープライズ版フロントエンドを有効にするかどうか、エンタープライズ版専用管理インターフェースを提供
+  enabled: true
+  image:
+    # g-hsod9681-docker.pkg.coding.net/dify-artifact/dify/dify-enterprise-frontend
+    repository: langgenius/dify-enterprise-frontend
+    tag: "0.14.4"
+  replicas: 1
+  resources: {}
+  serviceAccountName: ""
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  readinessProbe:
+    initialDelaySeconds: 3
+    failureThreshold: 3
+    periodSeconds: 10
+    successThreshold: 1
+    tcpSocket:
+      port: 3000
+    timeoutSeconds: 1
+  livenessProbe:
+    failureThreshold: 3
+    periodSeconds: 10
+    successThreshold: 1
+    tcpSocket:
+      port: 3000
+    timeoutSeconds: 1
+  extraEnv:
+  # 必要に応じて独自の環境変数を適用してください。以下はデモです。
+  # extraEnv:
+  #   - name: ENV_FROM_COMMUNITY1
+  #     value: env123
+  #   - name: ENV_FROM_COMMUNITY2
+  #     value: env123
+
+ssrfProxy:
+  # SSRF 保護プロキシを有効にするかどうか
+  enabled: true
+  image:
+    # g-hsod9681-docker.pkg.coding.net/dify-artifact/dify/squid
+    repository: ubuntu/squid
+    tag: "6.13-25.04_beta"
+  replicas: 1
+  resources: {}
+  serviceAccountName: ""
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  readinessProbe: {}
+  livenessProbe: {}
+  # Squidリバースプロキシのカスタムサンドボックスホスト。デフォルト使用するには空のままにしてください（推奨）
+  sandboxHost: ""
+  extraEnv:
+
+unstructured:
+  # Unstructured ドキュメント処理サービスを有効にするかどうか、複雑なドキュメントフォーマットの解析をサポート
+  enabled: true
+  image:
+    # g-hsod9681-docker.pkg.coding.net/dify-artifact/dify/unstructured-api
+    repository: downloads.unstructured.io/unstructured-io/unstructured-api
+    tag: "0.0.70"
+  replicas: 1
+  resources: {}
+  serviceAccountName: ""
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  readinessProbe: {}
+  livenessProbe: {}
+  # unstructured_api_key:{ }
+  # unstructured.io が提供する .ppt ドキュメント解析サービスにアクセスしようとする場合のみ API キーを使用
+  extraEnv:
+
+plugin_daemon:
+  # プラグインデーモンを有効にするかどうか、サードパーティプラグインとツール拡張をサポート
+  enabled: true
+  replicas: 1
+  image:
+    # g-hsod9681-docker.pkg.coding.net/dify-artifact/dify/dify-plugin-daemon
+    repository: langgenius/dify-plugin-daemon
+  resources: {}
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  # プラグインシステム API アクセスキー
+  apiKey: "#REPLACE_ME#"
+  # プラグインの最大起動時間（秒）
+  maxLaunchSeconds: 3600
+  # プラグインデジタル署名を強制検証するかどうか、true=検証済みプラグインのみ許可
+  forceVerifyingSignature: false
+  # NodePort / LoadBalancer
+  serviceType: "NodePort"
+  # ロードバランサーまたはノード IP
+  remoteInstallHost: "127.0.0.1"
+  # リモートインストールサービスポート
+  remoteInstallPort: "5003"
+  # プラグイン実行タイムアウト（秒）
+  pluginExecuteTimeout: "360"
+  # 管理者APIを有効にするかどうか
+  adminApiEnabled: true
+
+plugin_controller:
+  # プラグインコントローラーレプリカ数
+  replicas: 1
+  image:
+    # g-hsod9681-docker.pkg.coding.net/dify-artifact/dify/enterprise_plugin-crd
+    repository: langgenius/enterprise_plugin-crd
+  resources: {}
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+
+plugin_connector:
+  # プラグインコネクターレプリカ数
+  replicas: 1
+  image:
+    # g-hsod9681-docker.pkg.coding.net/dify-artifact/dify/enterprise_plugin-connector
+    repository: langgenius/enterprise_plugin-connector
+  resources: {}
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  # 追加ラベル設定
+  labels: {}
+  # プラグインコネクター API キー
+  apiKey: "#REPLACE_ME#"
+  # プラグイン操作の最大待機時間（秒）
+  maxWaitSeconds: 3600
+  # カスタムサービスアカウント名
+  customServiceAccount: ""
+  # プラグインランナーが使用するサービスアカウント
+  runnerServiceAccount: ""
+  # イメージリポジトリアクセスシークレット名
+  imageRepoSecret: "image-repo-secret"
+  # イメージリポジトリプレフィックスアドレス
+  imageRepoPrefix: "docker.io/your-image-repo-prefix"
+  # imageRepoType: docker / ecr
+  imageRepoType: docker
+  # AWS ECR リージョン設定（ECR 使用時）
+  ecrRegion: "us-east-1"
+  # g-hsod9681-docker.pkg.coding.net/dify-artifact/dify/nginx:1.27.3
+  gatewayImage: "nginx:1.29.4-alpine"
+  # g-hsod9681-docker.pkg.coding.net/dify-artifact/dify/executor:latest
+  shaderImage: "gcr.io/kaniko-project/executor:latest"
+  # g-hsod9681-docker.pkg.coding.net/dify-artifact/dify/busybox:latest
+  busyBoxImage: "busybox:latest"
+  # ECR 操作用の AWS CLI イメージ
+  awsCliImage: "amazon/aws-cli:latest"
+  # ビルダー名、kanikoはデフォルトのコンテナイメージビルドツール
+  builderName: "kaniko"
+  # プラグインリソース制限設定
+  pluginResourceLimits:
+    cpu: 1000m
+    memory: 3000Mi
+    ephemeralStorage: 5Gi
+  # プラグインリソース要求設定
+  pluginResourceRequests:
+    cpu: 100m
+    memory: 50Mi
+    ephemeralStorage: 5Gi
+  # プラグインコネクターのセキュアモードを有効にするかどうか
+  secure: false
+  # GitHubビルダー設定
+  github:
+    authMethod: "auto"
+    accessToken: ""
+    repoName: "your-repo-name"
+    actionFileName: "build.yml"
+    branch: "main"
+    imagePrefix: "docker.io/your-image-repo-prefix"
+    orgName: "your-org-name"
+    shaderImage: "gcr.io/kaniko-project/executor:latest"
+    app:
+      enabled: false
+      appId: "0"
+      installationId: "0"
+      privateKeySecretKey: "app.pem"
+  # g-hsod9681-docker.pkg.coding.net/dify-artifact/dify/plugin-build-base-python:3.13
+  # g-hsod9681-docker.pkg.coding.net/dify-artifact/dify/plugin-build-base-python:3.12
+  # g-hsod9681-docker.pkg.coding.net/dify-artifact/dify/plugin-build-base-python:3.11
+  # g-hsod9681-docker.pkg.coding.net/dify-artifact/dify/plugin-build-base-python:3.10
+  # プラグインジェネレーター設定、異なる Python バージョン用のビルドイメージを定義
+  generatorConf: |
+    generator:
+      repo: langgenius
+      python:
+        pipMirror: ""
+        preCompile: true
+        versions:
+          python3.14:
+            langgenius: docker.io/langgenius/plugin-build-base-python:3.14-secure
+          python3.13:
+            langgenius: docker.io/langgenius/plugin-build-base-python:3.13-secure
+          python3.12:
+            langgenius: docker.io/langgenius/plugin-build-base-python:3.12-secure
+          python3.11:
+            langgenius: docker.io/langgenius/plugin-build-base-python:3.11
+          python3.10:
+            langgenius: docker.io/langgenius/plugin-build-base-python:3.10
+
+gateway:
+  # エンタープライズ版ゲートウェイサービスレプリカ数
+  replicas: 1
+  image:
+    # g-hsod9681-docker.pkg.coding.net/dify-artifact/dify/enterprise_gateway
+    repository: langgenius/enterprise_gateway
+  resources: {}
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  # Caddyリバースプロキシトランスポートタイムアウト
+  transport:
+    dialTimeout: "30s"
+    keepalive: "30s"
+    keepaliveInterval: "30s"
+  # CORSリクエストを許可する追加オリジン、空の場合はdifyドメインのみ許可
+  allowOrigins:
+    - http://localhost:3000
+    - http://localhost:3001
+    - http://localhost:5001
+    - http://localhost:3002
+  log:
+    filterFields:
+      - request>headers>X-Csrf-Token delete
+
+plugin_manager:
+  # プラグインマネージャーサービスを有効にするかどうか
+  enabled: true
+  replicas: 1
+  image:
+    # g-hsod9681-docker.pkg.coding.net/dify-artifact/dify/dify-plugin-manager
+    repository: langgenius/dify-plugin-manager
+    tag: "0.14.4"
+  resources: {}
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  # サーバータイムアウト
+  serverTimeout: "60s"
+  # gRPCサーバータイムアウト
+  grpcServerTimeout: "60s"
+  # プラグインリソース監視メトリクスソース
+  # disabled: メトリクス収集なし
+  # cadvisor: cadvisorから収集
+  # prometheus: prometheusからクエリ（推奨）
+  metric:
+    source: "disabled"
+    scrape:
+      retainPeriod: 604800s
+      tsdbBlockSizeLimitBytes: 536870912
+      scrapeTimeout: 10s
+      scrapeInterval: 20s
+      tmpDir: /tmp
+
+minio:
+  # MinIO ルートユーザー名
+  rootUser: minioadmin
+  # MinIO サーバールートパスワード。`openssl rand -base64 32` を使用して強力なパスワードを生成
+  rootPassword: NzGG+ngHuwz0xzMQ1XFt8JYCAxdrhnQ8/93LCggMt00=
+  # MinIO レプリカ数
+  replicas: 1
+  # MinIO 動作モード: standalone=単一ノード、distributed=分散
+  mode: standalone
+  resources:
+    limits:
+      # CPU リソース制限
+      cpu: 1000m
+      # メモリリソース制限
+      memory: 2048Mi
+    requests:
+      # CPU リソース要求
+      cpu: 500m
+      # メモリリソース要求
+      memory: 1024Mi
+  persistence:
+    # MinIO データ永続化を有効にするかどうか
+    enabled: false
+
+###################################
+# パーシステンス設定
+###################################
+persistence:
+  # サポートされるストレージタイプ: local, s3, azure-blob, aliyun-oss, google-storage, tencent-cos volcengine-tos huawei-obs
+  type: "local"
+  local:
+    # コンテナ内のローカルストレージマウントパス
+    mountPath: "/app/api/storage"
+    annotations:
+      # Helm リソース保持ポリシー、削除時にデータを保持
+      helm.sh/resource-policy: keep
+    persistentVolumeClaim:
+      # 既存の PVC 名、空の場合は新しいものを作成
+      existingClaim: ""
+      # ホストストレージパス
+      hostPath: "/data/dify"
+      ## Dify アプリデータ永続ボリュームストレージクラス
+      ## 定義された場合、storageClassName: <storageClass>
+      ## "-"に設定された場合、storageClassName: ""、動的プロビジョニングを無効化
+      ## 未定義（デフォルト）または null に設定された場合、storageClassName の仕様は
+      ##   設定されず、デフォルトプロビジョナーを選択。
+      ## `api` と `worker` に ReadWriteMany アクセスモードが必要
+      ##
+      # ストレージクラス名
+      storageClass:
+      # アクセスモード、API と Worker に ReadWriteMany が必要
+      accessModes: ReadWriteMany
+      # ストレージサイズ
+      size: 5Gi
+      # サブパス
+      subPath: ""
+  s3:
+    # S3 互換ストレージエンドポイント、Cloudflare R2 の例
+    endpoint: "https://xxx.r2.cloudflarestorage.com"
+    # S3 アクセスキー ID
+    accessKey: "#REPLACE_ME#"
+    # S3 シークレットアクセスキー
+    secretKey: "#REPLACE_ME#"
+    # S3 リージョン
+    region: "us-east-1"
+    # S3 バケット名
+    bucketName: "your-bucket-name"
+    # アドレスタイプ、path または virtual-hosted
+    addressType: ""
+    # AWS 管理 IAM を使用するかどうか
+    useAwsManagedIam: false
+    # AWS S3 を使用するかどうか（他の S3 互換サービスの代わりに）
+    useAwsS3: true
+  azureBlob:
+    # Azure ストレージアカウント名
+    accountName: ""
+    # Azure ストレージアカウントキー
+    accountKey: ""
+    # Azure Blob コンテナ名
+    containerName: ""
+    # Azure ストレージアカウント URL
+    accountUrl: ""
+  aliyunOss:
+    # アリババクラウド OSS エンドポイント
+    endpoint: "your-endpoint"
+    # OSS バケット名
+    bucketName: "your-bucket-name"
+    # アリババクラウドアクセスキー ID
+    accessKey: "#REPLACE_ME#"
+    # アリババクラウドアクセスキーシークレット
+    secretKey: "#REPLACE_ME#"
+    # OSS リージョン
+    region: "ap-southeast-1"
+  googleStorage:
+    # Google Cloud Storage バケット名
+    bucketName: "your-bucket-name"
+    # サービスアカウント JSON キーファイルの内容、base64 エンコード済み
+    serviceAccountJson: ""
+  tencentCos:
+    # テンセントクラウド COS バケット名
+    bucketName: "your-bucket-name"
+    # COS リージョン
+    region: ""
+    # テンセントクラウド SecretId
+    secretId: "#REPLACE_ME"
+    # テンセントクラウド SecretKey
+    secretKey: "#REPLACE_ME"
+    # アクセスプロトコル: http または https
+    scheme: "https"
+  huaweiObs:
+    # ファーウェイクラウド OBS サーバーアドレス
+    server: "your-server-url"
+    # OBS バケット名
+    bucketName: "your-bucket-name"
+    # ファーウェイクラウドアクセスキー ID
+    accessKey: "#REPLACE_ME#"
+    # ファーウェイクラウドシークレットアクセスキー
+    secretKey: "#REPLACE_ME#"
+  volcengineTos:
+    # Volcengine TOS バケット名
+    bucketName: "your-bucket-name"
+    # Volcengine アクセスキー ID
+    accessKey: "#REPLACE_ME#"
+    # Volcengine シークレットアクセスキー
+    secretKey: "#REPLACE_ME#"
+    # TOS エンドポイントアドレス
+    endpoint: "tos-endpoint"
+    # TOS リージョン
+    region: "your-region"
+
+###################################
+# メール設定
+###################################
+mail:
+  # メール設定タイプ、サポート: resend, smtp
+  type: ""
+  # デフォルト送信者メールアドレス（特定のアドレスが指定されていない場合に使用）
+  defaultSender: "YOUR EMAIL FROM (eg: no-reply <no-reply@dify.ai>)"
+  # Resend サービス設定 (https://resend.com)
+  resend:
+    # Resend メールサービス API キー
+    apiKey: ""
+    # Resend API アドレス
+    apiUrl: https://api.resend.com
+  smtp:
+    # SMTP サーバーアドレス
+    server: ""
+    # SMTP サーバーポート
+    port: 587
+    # SMTP ユーザー名
+    username: ""
+    # SMTP パスワード
+    password: ""
+    # TLS 暗号化を使用するかどうか
+    useTLS: false
+
+###################################
+# 外部 PostgreSQL
+###################################
+externalPostgres:
+  # 外部 PostgreSQL データベースを使用するかどうか
+  enabled: false
+  # PostgreSQL サーバーアドレス
+  address: localhost
+  # PostgreSQL ポート
+  port: 5432
+  credentials:
+    dify:
+      # Dify メインデータベース名
+      database: "dify"
+      # データベースユーザー名
+      username: "postgres"
+      # データベースパスワード
+      password: "#REPLACE_ME#"
+      # SSL モード: require, prefer, disable など
+      sslmode: "require"
+      # extras: "options=-c search_path=your-schema -c your-other-option=xxx"
+      extras: ""
+      # 文字セット
+      charset: ""
+      # URI スキーム
+      uriScheme: "postgresql"
+    plugin_daemon:
+      # プラグインデーモンデータベース名
+      database: "dify_plugin_daemon"
+      username: "postgres"
+      password: "#REPLACE_ME#"
+      sslmode: "require"
+      # extras: "options=-c search_path=your-schema -c your-other-option=xxx"
+      extras: ""
+      charset: ""
+      uriScheme: "postgresql"
+    enterprise:
+      # エンタープライズ版データベース名
+      database: "enterprise"
+      username: "postgres"
+      password: "#REPLACE_ME#"
+      sslmode: "require"
+      # extras: "options=-c search_path=your-schema -c your-other-option=xxx"
+      extras: ""
+      charset: ""
+      uriScheme: "postgresql"
+    audit:
+      # 監査データベース名
+      database: "audit"
+      username: "postgres"
+      password: "#REPLACE_ME#"
+      sslmode: "require"
+      # extras: "options=-c search_path=your-schema -c your-other-option=xxx"
+      extras: ""
+      charset: ""
+      uriScheme: "postgresql"
+
+postgresql:
+  # 内蔵 PostgreSQL を有効にするかどうか
+  enabled: false
+  # PostgreSQL インスタンス名
+  name: postgres
+  global:
+    # ストレージクラス設定
+    storageClass: ""
+    postgresql:
+      auth:
+        # PostgreSQL スーパーユーザーパスワード
+        postgresPassword: "#REPLACE_ME#"
+        # デフォルトデータベース名
+        database: "dify"
+  #        username: ""
+  #        password: ""
+  primary:
+    initdb:
+      # データベース初期化スクリプト
+      scripts:
+        my_init_script.sh: |
+          #!/bin/bash
+          set -e
+          echo "Creating database..."
+          PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -U postgres << 'EOF'
+          SELECT 'CREATE DATABASE enterprise' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'enterprise')\gexec
+          SELECT 'CREATE DATABASE audit' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'audit')\gexec
+          EOF
+
+###################################
+# 外部 Redis
+###################################
+externalRedis:
+  # 外部 Redis を使用するかどうか
+  enabled: true
+  # Redis への SSL 接続を使用するかどうか
+  useSSL: false
+
+  # Redis サーバーアドレス
+  host: "redis.example"
+  # Redis ポート
+  port: 6379
+  # Redis ユーザー名 (Redis 6.0+)
+  username: ""
+  # Redis パスワード
+  password: "#REPLACE_ME#"
+  # Redis データベース番号
+  db: 0
+
+  sentinel:
+    # Redis Sentinel モードを有効にするかどうか
+    enabled: false
+    # Redis Sentinel ノードリスト（カンマ区切り、フォーマット: host:port）
+    nodes: ""
+    # Redis Sentinel で監視されるサービス名
+    serviceName: ""
+    # Sentinel ユーザー名
+    username: ""
+    # Sentinel パスワード
+    password: "#REPLACE_ME#"
+    # Redis Sentinel 接続ソケットタイムアウト（単位: 秒）
+    socketTimeout: 0.1
+
+  cluster:
+    # Redis クラスターモードを有効にするかどうか
+    enabled: false
+    # Redis クラスターノードリスト（カンマ区切り、フォーマット: host:port）
+    nodes: "#REPLACE_ME#"
+    # Redis クラスターパスワード
+    password: "#REPLACE_ME#"
+
+redis:
+  # 内蔵 Redis を有効にするかどうか
+  enabled: false
+  global:
+    redis:
+      # 内蔵 Redis パスワード
+      password: "#REPLACE_ME#"
+
+###################################
+# ベクトルデータベース
+###################################
+vectorDB:
+  # 外部ベクトルデータベースを使用するかどうか
+  useExternal: true
+  # ベクトルデータベースタイプ、サポートリスト: https://enterprise-docs.dify.ai/versions/3-0-x/zh-cn/deployment/advanced-configuration/vector-database
+  externalWeaviate:
+    # Weaviate サービスエンドポイント
+    endpoint: "http://weaviate:8080"
+    # Weaviate API キー
+    apiKey: "#REPLACE_ME#"
+  # 外部 Qdrant
+  externalQdrant:
+    # Qdrant サービスエンドポイント
+    endpoint: "http://your-qdrant-cluster-url.qdrant.tech/"
+    # Qdrant API キー
+    apiKey: "#REPLACE_ME#"
+  # 外部 Milvus
+  externalMilvus:
+    # Milvus サーバーへの接続 URI（例: 'http://localhost:19530' または 'https://milvus-instance.example.com:19530'）
+    uri: "http://127.0.0.1:19530"
+    # Milvus アクセストークン
+    token: ""
+    # Milvus ユーザー名
+    user: ""
+    # Milvus パスワード
+    password: ""
+    # Milvus データベース名
+    database: "default"
+  externalRelyt:
+    # Relyt データベースホストアドレス
+    host: "your-relyt.domain"
+    # Relyt ポート
+    port: 5431
+    # ユーザー名
+    user: "postgres"
+    # パスワード
+    password: "#REPLACE_ME#"
+    # データベース名
+    database: "pgvectors"
+  externalPgVectoRS:
+    # PgVecto-RS データベースホスト
+    host: "your-pgvectors.domain"
+    # ポート
+    port: 5432
+    # ユーザー名
+    user: "postgres"
+    # パスワード
+    password: "#REPLACE_ME#"
+    # データベース名
+    database: "pgvectors"
+  externalTencentVectorDB:
+    # テンセントベクトルデータベースホスト
+    host: "your-tencent-vector-db.domain"
+    # API キー
+    apiKey: "#REPLACE_ME#"
+    # 接続タイムアウト
+    timeout: 30
+    # ユーザー名
+    username: "tencent"
+    # パスワード
+    password: "#REPLACE_ME#"
+    # シャード数
+    shard: 1
+    # レプリカ数
+    replicas: 2
+    # データベース名
+    database: "tencent"
+  externalOpenSearch:
+    # OpenSearch ホストアドレス
+    host: "your-opensearch.domain"
+    # OpenSearch ポート
+    port: 9200
+    # ユーザー名
+    user: ""
+    # パスワード
+    password: "#REPLACE_ME#"
+    # TLS を使用するかどうか
+    useTLS: false
+  externalElasticsearch:
+    # Elasticsearch ホストアドレス
+    host: "127.0.0.1"
+    # Elasticsearch ポート
+    port: 9200
+    # ユーザー名
+    username: "elastic"
+    # パスワード
+    password: "#REPLACE_ME#"
+  externalAnalyticDB:
+    # アリババクラウド AnalyticDB キー ID
+    keyID: "#REPLACE_ME#"
+    # キーシークレット
+    keySecret: "#REPLACE_ME#"
+    # リージョン ID
+    regionID: "#REPLACE_ME#"
+    # インスタンス ID
+    instanceID: "#REPLACE_ME#"
+    # アカウント名
+    account: "#REPLACE_ME#"
+    # パスワード
+    password: "#REPLACE_ME#"
+    # ホストアドレス
+    host: "#REPLACE_ME#"
+    # ポート
+    port: 5432
+    # ネームスペース
+    namespace: ""
+    # ネームスペースパスワード
+    namespacePassword: ""
+    # 最小接続数
+    minConnection: 1
+    # 最大接続数
+    maxConnection: 5
+  externalLindorm:
+    # LindormサービスURL
+    url: "http://localhost:30070"
+    username: "admin"
+    password: "admin"
+    indexType: "hnsw"
+    distanceType: "l2"
+    usingUgc: true
+    queryTimeout: 2.0
+
+qdrant:
+  # 内蔵 Qdrant ベクトルデータベースを有効にするかどうか
+  enabled: false
+  # Qdrant レプリカ数
+  replicaCount: 3
+  image:
+    repository: langgenius/qdrant
+    pullPolicy: IfNotPresent
+    tag: "v1.7.3"
+  # Qdrant API キー
+  apiKey: "dify123456"
+  persistence:
+    # ストレージアクセスモード
+    accessModes: ["ReadWriteOnce"]
+    # ストレージサイズ
+    size: 10Gi
+  resources:
+    {}
+    # limits:
+    #   cpu: 100m
+    #   memory: 128Mi
+    # requests:
+    #   cpu: 100m
+    #   memory: 128Mi
+
+weaviate:
+  # 内蔵 Weaviate ベクトルデータベースを有効にするかどうか
+  enabled: false
+
+###################################
+# 外部 Prometheus
+###################################
+externalPrometheus:
+  # プラグインメトリクス監視用のPrometheusを提供
+  enabled: false
+  endpoint: "http://prometheus:9090"
+  timeout: 10s
+  username: ""
+  password: ""
+  insecure: true
+
+# Docker イメージプルシークレットリスト
+imagePullSecrets: []

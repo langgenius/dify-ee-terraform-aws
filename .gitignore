@@ -1,0 +1,74 @@
+# Terraform 相关文件
+# Local .terraform directories
+**/.terraform/*
+
+# .tfstate files
+*.tfstate
+*.tfstate.*
+
+# Crash log files
+crash.log
+crash.*.log
+
+# Exclude all .tfvars files, which are likely to contain sensitive data
+*.tfvars
+*.tfvars.json
+
+# Ignore override files as they are usually used to override resources locally and so
+# are not checked in
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Include override files you do wish to add to version control using negated pattern
+# !example_override.tf
+
+# Include tfplan files to ignore the plan output of command: terraform plan -out=tfplan
+# example: *tfplan*
+
+# Ignore CLI configuration files
+.terraformrc
+terraform.rc
+
+# Terraform lock files (comment out if you want to commit lock files)
+.terraform.lock.hcl
+
+# Terraform state lock files
+.terraform.tfstate.lock.info
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Log files
+*.log 
+
+
+# Tencent Cloud
+cloud/tencent-cloud/terraform.tfvars
+
+# Aliyun
+cloud/aliyun/terraform.tfvars
+*.plan
+
+/cloud/aws/tf/tfplan
+/cloud/aws/tf/*.tfplan
+
+# AWS secret generated files
+/cloud/aws/secret/
+
+# Plugin HPA generated YAML files
+/cloud/aws/plugin-hpa/*.yaml
