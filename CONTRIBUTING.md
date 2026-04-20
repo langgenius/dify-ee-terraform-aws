@@ -107,9 +107,4 @@ Read [`cloud/aws/README.md`](cloud/aws/README.md) for the full deployment walkth
 
 Please **do not** open public issues for security vulnerabilities. Instead, email security@dify.ai with details. We'll acknowledge within two business days and coordinate a fix.
 
-## Getting help
-
-- General questions → [GitHub Discussions](https://github.com/langgenius/dify-ee-terraform-aws/discussions) (or the related issue thread)
-- Real-time chat → [LangGenius Discord](https://discord.gg/8Tpq4AcN9c)
-
 Thanks for contributing — looking forward to your PR.
