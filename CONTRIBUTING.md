@@ -87,8 +87,8 @@ Trivial AI-assisted changes (typo fixes, single-line tweaks, doc rewording) do n
 
 If your change affects user-visible behavior, please update the relevant docs in the same PR:
 
-- `cloud/aws/README.md` — main deployment guide
-- `cloud/aws/CLAUDE.md` — architecture and configuration reference
+- `README.md` — main deployment guide
+- `CLAUDE.md` — architecture and configuration reference
 - `cloud/aws/tf/terraform.tfvars.example` — variable documentation
 - The relevant changelog folder under `cloud/aws/changelog-*/` if introducing a major feature
 
@@ -101,7 +101,7 @@ You'll need:
 - `kubectl` and `helm` v3
 - A throwaway AWS account or sandbox — please do **not** test against shared production accounts
 
-Read [`cloud/aws/README.md`](cloud/aws/README.md) for the full deployment walkthrough and [`cloud/aws/CLAUDE.md`](cloud/aws/CLAUDE.md) for the architecture overview.
+Read [`README.md`](README.md) for the full deployment walkthrough and [`CLAUDE.md`](CLAUDE.md) for the architecture overview.
 
 ## Security disclosures
 

@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **Working directory** — All shell commands and relative paths in this document (`tf/`, `scripts/`, `secret/`, etc.) are written from `cloud/aws/` as the working directory. When invoking from the repo root, prepend `cloud/aws/` to these paths.
+
 ## Overview
 
 This repository contains Terraform infrastructure-as-code for deploying **Dify Enterprise Edition** on AWS. It provisions a complete EKS-based production environment including networking, compute, databases, storage, and Kubernetes components. The deployment supports both AWS standard regions and AWS China regions.

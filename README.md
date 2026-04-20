@@ -1,6 +1,10 @@
 # Dify 企业版 AWS 部署
 # Dify Enterprise AWS Deployment
 
+> **Working directory** — All shell commands and relative paths in this guide assume you have `cd cloud/aws/` first, unless prefixed with `cloud/aws/` explicitly.
+>
+> **工作目录** — 本文档中所有 shell 命令和相对路径，除非明确以 `cloud/aws/` 开头，否则都假定你已经先 `cd cloud/aws/`。
+
 ## ⚠️ 安全提示 | Security Notice
 
 **生产环境部署前请务必：**
