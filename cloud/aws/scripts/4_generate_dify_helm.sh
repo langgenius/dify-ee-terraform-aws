@@ -163,7 +163,7 @@ get_aws_certificates() {
     local cert_info
     
     # Get certificate list from AWS (no logging here to avoid polluting the output)
-    cert_info=$(aws acm list-certificates --region "${AWS_REGION}" --certificate-statuses ISSUED 2>/dev/null || echo "")
+    cert_info=$(aws acm list-certificates --region "${AWS_REGION}" --certificate-statuses ISSUED --output json 2>/dev/null || echo "")
     
     if [ -z "$cert_info" ] || [ "$(echo "$cert_info" | jq '.CertificateSummaryList | length')" -eq 0 ]; then
         return 1

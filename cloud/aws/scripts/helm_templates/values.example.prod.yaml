@@ -23,6 +23,8 @@
 # {{opensearch_user}} is the user for opensearch access. E.g. admin
 # {{opensearch_password}} is the password for opensearch access. E.g. DifyOpenSearchPass123!
 ###################################
+# Adapted for Dify Helm chart 3.9.x.
+###################################
 global:
   appSecretKey: '{{secret_key}}'
   consoleApiDomain: "console.{{local_domain}}"
@@ -72,17 +74,28 @@ worker:
     requests:
       cpu: 1000m
       memory: 512Mi
-triggerWorker:
-  replicas: 3
-  celeryWorkerAmount: 1
-  serviceAccountName: "dify-api-sa"
-  resources:
-    limits:
-      cpu: 2000m
-      memory: 1024Mi
-    requests:
-      cpu: 1000m
-      memory: 512Mi
+additionalWorkers:
+  - name: dataset-worker
+    enabled: false
+    replicas: 1
+    celeryQueues: "dataset,priority_dataset,pipeline,priority_pipeline"
+    celeryWorkerAmount: 4
+  - name: workflow-worker
+    enabled: false
+    replicas: 1
+    celeryQueues: "workflow,workflow_storage,workflow_based_app_execution"
+    celeryWorkerAmount: 2
+  - name: general-worker
+    enabled: false
+    replicas: 1
+    celeryQueues: "mail,ops_trace,app_deletion,conversation,api_token,plugin,retention,enterprise_telemetry"
+    celeryWorkerAmount: 1
+  - name: trigger-worker
+    enabled: true
+    replicas: 3
+    celeryQueues: "schedule_poller,schedule_executor,triggered_workflow_dispatcher,trigger_refresh_executor"
+    celeryWorkerAmount: 1
+    serviceAccountName: "dify-api-sa"
 workerBeat:
   resources:
     limits:
@@ -132,6 +145,9 @@ enterpriseAudit:
     requests:
       cpu: 500m
       memory: 1024Mi
+enterpriseCollector:
+  enabled: true
+  replicas: 1
 enterpriseFrontend:
   replicas: 3
   resources:
@@ -242,33 +258,25 @@ persistence:
     useAwsS3: true
 
 ###################################
-# External postgres
+# External Database (Dify chart 3.9.x schema)
 ###################################
-externalPostgres:
+externalDatabase:
   enabled: true
-  address: "{{rds_address}}"
+  engine: "postgres"
+  host: "{{rds_address}}"
   port: 5432
-  credentials:
-    dify:
-      database: "{{rds_main_database_name}}"
-      username: "postgres"
-      password: "{{rds_password}}"
-      sslmode: "require"
-    plugin_daemon:
-      database: "{{rds_plugin_daemon_database_name}}"
-      username: "postgres"
-      password: "{{rds_password}}"
-      sslmode: "require"
-    enterprise:
-      database: "{{rds_enterprise_database_name}}"
-      username: "postgres"
-      password: "{{rds_password}}"
-      sslmode: "require"
-    audit:
-      database: "{{rds_audit_database_name}}"
-      username: "postgres"
-      password: "{{rds_password}}"
-      sslmode: "require"
+  user: "postgres"
+  password: "{{rds_password}}"
+  databases:
+    dify: "{{rds_main_database_name}}"
+    plugin_daemon: "{{rds_plugin_daemon_database_name}}"
+    enterprise: "{{rds_enterprise_database_name}}"
+    audit: "{{rds_audit_database_name}}"
+  dialectOptions:
+    postgres:
+      sslMode: "require"
+      uriScheme: "postgresql"
+      extras: ""
 
 ###################################
 # External Redis

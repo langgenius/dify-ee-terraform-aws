@@ -28,9 +28,11 @@
 # {{redis_password}} is the password for redis access
 
 
-# {{qdrant_endpoint}} is the endpoint for qdrant access. E.g. http://your-qdrant-cluster-url.qdrant.tech/
-# {{qdrant_api_key}} is the api key for qdrant access
+# {{opensearch_address}} is the address for opensearch access. E.g. vpc-dify-eks-cluster-opensearch-12345678.us-east-2.es.amazonaws.com
+# {{opensearch_user}} is the user for opensearch access. E.g. admin
+# {{opensearch_password}} is the password for opensearch access. E.g. DifyOpenSearchPass123!
 ###################################
+# Adapted for Dify Helm chart 3.9.x.
 # Note: Approximate 27G Disk Space will be used, please make sure you have enough space in nodes.
 #       Each unstructured replica will use approx. 8.4G Disk Space.
 ###################################
@@ -68,9 +70,28 @@ api:
 worker:
   replicas: 1
   serviceAccountName: "dify-api-sa"
-triggerWorker:
-  replicas: 1
-  serviceAccountName: "dify-api-sa"
+additionalWorkers:
+  - name: dataset-worker
+    enabled: false
+    replicas: 1
+    celeryQueues: "dataset,priority_dataset,pipeline,priority_pipeline"
+    celeryWorkerAmount: 4
+  - name: workflow-worker
+    enabled: false
+    replicas: 1
+    celeryQueues: "workflow,workflow_storage,workflow_based_app_execution"
+    celeryWorkerAmount: 2
+  - name: general-worker
+    enabled: false
+    replicas: 1
+    celeryQueues: "mail,ops_trace,app_deletion,conversation,api_token,plugin,retention,enterprise_telemetry"
+    celeryWorkerAmount: 1
+  - name: trigger-worker
+    enabled: true
+    replicas: 1
+    celeryQueues: "schedule_poller,schedule_executor,triggered_workflow_dispatcher,trigger_refresh_executor"
+    celeryWorkerAmount: 1
+    serviceAccountName: "dify-api-sa"
 workerBeat:
   replicas: 1
   serviceAccountName: "dify-api-sa"
@@ -80,6 +101,9 @@ sandbox:
   replicas: 1
   apiKey: "{{secret_key}}"
 enterpriseAudit:
+  replicas: 1
+enterpriseCollector:
+  enabled: true
   replicas: 1
 enterprise:
   replicas: 1
@@ -132,33 +156,25 @@ persistence:
     useAwsS3: true
 
 ###################################
-# External postgres
+# External Database (Dify chart 3.9.x schema)
 ###################################
-externalPostgres:
+externalDatabase:
   enabled: true
-  address: "{{rds_address}}"
+  engine: "postgres"
+  host: "{{rds_address}}"
   port: 5432
-  credentials:
-    dify:
-      database: "{{rds_main_database_name}}"
-      username: "postgres"
-      password: "{{rds_password}}"
-      sslmode: "require"
-    plugin_daemon:
-      database: "{{rds_plugin_daemon_database_name}}"
-      username: "postgres"
-      password: "{{rds_password}}"
-      sslmode: "require"
-    enterprise:
-      database: "{{rds_enterprise_database_name}}"
-      username: "postgres"
-      password: "{{rds_password}}"
-      sslmode: "require"
-    audit:
-      database: "{{rds_audit_database_name}}"
-      username: "postgres"
-      password: "{{rds_password}}"
-      sslmode: "require"
+  user: "postgres"
+  password: "{{rds_password}}"
+  databases:
+    dify: "{{rds_main_database_name}}"
+    plugin_daemon: "{{rds_plugin_daemon_database_name}}"
+    enterprise: "{{rds_enterprise_database_name}}"
+    audit: "{{rds_audit_database_name}}"
+  dialectOptions:
+    postgres:
+      sslMode: "require"
+      uriScheme: "postgresql"
+      extras: ""
 
 ###################################
 # External Redis
