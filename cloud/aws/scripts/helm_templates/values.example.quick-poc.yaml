@@ -7,7 +7,6 @@
 # {{cert_uuid}} is the uuid for aws access. E.g. 12345678-1234-1234-1234-123456789012
 
 
-# {{s3_endpoint}} is the endpoint for s3 access. E.g. https://s3.us-east-2.amazonaws.com
 # {{s3_bucket_name}} is the bucket name for s3 access. E.g. dify-test-storage-t5ap12345
 
 # {{rds_address}} is the address for rds access. Default is dify-eks-cluster-aurora-postgres.cluster-12345678.us-east-2.rds.amazonaws.com
@@ -128,7 +127,10 @@ gateway:
 persistence:
   type: "s3"
   s3:
-    endpoint: "{{s3_endpoint}}"  # S3 endpoint for specified region
+    endpoint: ""  # Leave empty for native AWS S3; the SDK resolves endpoint from region.
+                  # Setting a URL here propagates to kaniko's S3_ENDPOINT env and breaks STS
+                  # (kaniko treats it as a global AWS endpoint override -> AssumeRoleWithWebIdentity
+                  # hits the S3 endpoint and returns HTTP 405). Only set for MinIO / non-AWS S3.
     accessKey: ""  # Use IRSA, no need to fill
     secretKey: ""  # Use IRSA, no need to fill
     region: "{{region}}"
