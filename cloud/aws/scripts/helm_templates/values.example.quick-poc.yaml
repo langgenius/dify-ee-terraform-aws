@@ -70,13 +70,19 @@ worker:
   replicas: 1
   celeryWorkerAmount: 1
   serviceAccountName: "dify-api-sa"
-# additionalWorkers: omitted so we inherit chart defaults. In 3.9.1 the chart
-# still deploys `trigger-worker` (enabled: true, handles schedule_poller /
-# schedule_executor / triggered_workflow_dispatcher / trigger_refresh_executor);
-# dataset/workflow/general workers stay disabled. The `worker` above handles
-# every other queue as the catch-all.
-# WARNING: Helm replaces lists wholesale — if you add an `additionalWorkers:`
-# override here, re-include the trigger-worker entry or that Deployment is lost.
+# additionalWorkers (optional): the `worker` above already consumes every
+# Celery queue, including trigger queues (schedule_poller, schedule_executor,
+# triggered_workflow_dispatcher, trigger_refresh_executor) — trigger support
+# was folded into the common worker, no separate trigger-worker needed.
+# Define `additionalWorkers:` only if you want to split specific queues onto
+# dedicated pods for independent scaling. Example:
+#
+# additionalWorkers:
+#   - name: workflow-worker
+#     enabled: true
+#     replicas: 1
+#     celeryQueues: "workflow,workflow_storage,workflow_based_app_execution"
+#     celeryWorkerAmount: 2
 workerBeat:
   replicas: 1
   serviceAccountName: "dify-api-sa"
