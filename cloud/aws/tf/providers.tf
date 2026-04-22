@@ -26,6 +26,14 @@ terraform {
 
 provider "aws" {
   region = var.aws_region
+
+  # AWS PRM attribution tag applied to every taggable AWS resource.
+  # https://docs.aws.amazon.com/PRM/latest/aws-prm-onboarding-guide/manual-tagging.html
+  default_tags {
+    tags = {
+      "aws-apn-id" = "pc:116fvxnczvo6w334gp69myblb"
+    }
+  }
 }
 
 # Kubernetes provider configuration
