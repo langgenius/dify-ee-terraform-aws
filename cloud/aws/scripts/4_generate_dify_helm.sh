@@ -215,6 +215,12 @@ replace_template() {
     if [ -z "${APP_SECRET_KEY:-}" ]; then
         APP_SECRET_KEY=$(openssl rand -base64 42)
     fi
+
+    # Generate a base64 32-byte key for enterprise.passwordEncryptionKey (3.9.x).
+    # The chart ships a public default; MUST be overridden in production.
+    if [ -z "${PASSWORD_ENCRYPTION_KEY:-}" ]; then
+        PASSWORD_ENCRYPTION_KEY=$(openssl rand -base64 32)
+    fi
     
     # Prepare AWS service suffix (used for ECR repo URL and ARN rendering).
     # S3 endpoint is intentionally hardcoded to "" in templates — setting it
@@ -233,6 +239,7 @@ replace_template() {
     sed -i.bak "s|{{cluster_name}}|${CLUSTER_NAME:-}|g" "$temp_file"
     sed -i.bak "s|{{deployment_id}}|${DEPLOYMENT_ID:-}|g" "$temp_file"
     sed -i.bak "s|{{secret_key}}|${APP_SECRET_KEY}|g" "$temp_file"
+    sed -i.bak "s|{{password_encryption_key}}|${PASSWORD_ENCRYPTION_KEY}|g" "$temp_file"
     
     # S3 related ({{s3_endpoint}} is intentionally absent — templates hardcode "")
     sed -i.bak "s|{{s3_bucket}}|${S3_BUCKET_NAME:-}|g" "$temp_file"
