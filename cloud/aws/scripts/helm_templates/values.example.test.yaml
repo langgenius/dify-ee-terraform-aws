@@ -36,6 +36,12 @@
 # Note: Approximate 27G Disk Space will be used, please make sure you have enough space in nodes.
 #       Each unstructured replica will use approx. 8.4G Disk Space.
 ###################################
+# Profile: test (HPA off — static replicas per component)
+# - api/worker use static replicas = 3 to exercise multi-pod behavior in tests.
+# - Other components default to replicas = 1.
+# - Assumes enable_hpa = false in terraform.tfvars (the default).
+# - If HPA is enabled on this cluster, static replicas below are overridden by HPA.
+###################################
 global:
   appSecretKey: '{{secret_key}}'
   consoleApiDomain: "console.{{local_domain}}"
@@ -68,30 +74,12 @@ api:
   innerApi:
     apiKey: "{{secret_key}}"
 worker:
-  replicas: 1
+  replicas: 3
+  celeryWorkerAmount: 1
   serviceAccountName: "dify-api-sa"
-additionalWorkers:
-  - name: dataset-worker
-    enabled: false
-    replicas: 1
-    celeryQueues: "dataset,priority_dataset,pipeline,priority_pipeline"
-    celeryWorkerAmount: 4
-  - name: workflow-worker
-    enabled: false
-    replicas: 1
-    celeryQueues: "workflow,workflow_storage,workflow_based_app_execution"
-    celeryWorkerAmount: 2
-  - name: general-worker
-    enabled: false
-    replicas: 1
-    celeryQueues: "mail,ops_trace,app_deletion,conversation,api_token,plugin,retention,enterprise_telemetry"
-    celeryWorkerAmount: 1
-  - name: trigger-worker
-    enabled: true
-    replicas: 1
-    celeryQueues: "schedule_poller,schedule_executor,triggered_workflow_dispatcher,trigger_refresh_executor"
-    celeryWorkerAmount: 1
-    serviceAccountName: "dify-api-sa"
+# additionalWorkers (dataset/workflow/general/trigger) omitted — the default
+# worker above consumes all Celery queues. Add entries here to split queues
+# into dedicated pods if a single worker becomes a bottleneck.
 workerBeat:
   replicas: 1
   serviceAccountName: "dify-api-sa"
@@ -101,9 +89,6 @@ sandbox:
   replicas: 1
   apiKey: "{{secret_key}}"
 enterpriseAudit:
-  replicas: 1
-enterpriseCollector:
-  enabled: true
   replicas: 1
 enterprise:
   replicas: 1

@@ -25,6 +25,18 @@
 ###################################
 # Adapted for Dify Helm chart 3.9.x.
 ###################################
+# Profile: prod (HPA on — set replicas = 1 for HPA-managed components)
+# - Assumes enable_hpa = true in terraform.tfvars. HPA manages replicas for
+#   api / worker / web / sandbox per the defaults in tf/variables.tf (hpa_config).
+# - HPA-managed Deployments set replicas: 1 here; HPA scales them out using
+#   the resources.requests blocks below (required for utilization metrics —
+#   do NOT remove resources.requests while HPA is on).
+# - Non-HPA components (enterprise, enterpriseFrontend, enterpriseAudit,
+#   ssrfProxy, unstructured, plugin_*, gateway) keep static replicas = 3.
+# - workerBeat is a singleton (replicas forced to 1; HPA disabled by design).
+# - If enable_hpa = false, scale api/worker/web/sandbox manually by editing
+#   replicas below.
+###################################
 global:
   appSecretKey: '{{secret_key}}'
   consoleApiDomain: "console.{{local_domain}}"
@@ -51,7 +63,7 @@ ingress:
   }
 
 api:
-  replicas: 3
+  replicas: 1  # HPA-managed (see hpa_config.api in tf/variables.tf)
   serverWorkerAmount: 1
   serviceAccountName: "dify-api-sa"
   innerApi:
@@ -60,42 +72,24 @@ api:
     limits:
       cpu: 3000m
       memory: 1024Mi
-    requests:
+    requests:  # required by HPA for CPU/memory utilization metrics
       cpu: 1500m
       memory: 512Mi
 worker:
-  replicas: 3
+  replicas: 1  # HPA-managed (see hpa_config.worker in tf/variables.tf)
   celeryWorkerAmount: 1
   serviceAccountName: "dify-api-sa"
   resources:
     limits:
       cpu: 2000m
       memory: 1024Mi
-    requests:
+    requests:  # required by HPA for CPU/memory utilization metrics
       cpu: 1000m
       memory: 512Mi
-additionalWorkers:
-  - name: dataset-worker
-    enabled: false
-    replicas: 1
-    celeryQueues: "dataset,priority_dataset,pipeline,priority_pipeline"
-    celeryWorkerAmount: 4
-  - name: workflow-worker
-    enabled: false
-    replicas: 1
-    celeryQueues: "workflow,workflow_storage,workflow_based_app_execution"
-    celeryWorkerAmount: 2
-  - name: general-worker
-    enabled: false
-    replicas: 1
-    celeryQueues: "mail,ops_trace,app_deletion,conversation,api_token,plugin,retention,enterprise_telemetry"
-    celeryWorkerAmount: 1
-  - name: trigger-worker
-    enabled: true
-    replicas: 3
-    celeryQueues: "schedule_poller,schedule_executor,triggered_workflow_dispatcher,trigger_refresh_executor"
-    celeryWorkerAmount: 1
-    serviceAccountName: "dify-api-sa"
+# additionalWorkers (dataset/workflow/general/trigger) omitted — the default
+# worker above consumes all Celery queues. Add entries here to split queues
+# into dedicated pods if a single worker becomes a bottleneck. Note: HPA does
+# not currently manage additionalWorkers; they scale via static replicas.
 workerBeat:
   resources:
     limits:
@@ -105,22 +99,22 @@ workerBeat:
       cpu: 500m
       memory: 512Mi
 web:
-  replicas: 3
+  replicas: 1  # HPA-managed (see hpa_config.web in tf/variables.tf)
   resources:
     limits:
       cpu: 1000m
       memory: 1024Mi
-    requests:
+    requests:  # required by HPA for CPU/memory utilization metrics
       cpu: 500m
       memory: 512Mi
 sandbox:
-  replicas: 3
+  replicas: 1  # HPA-managed (see hpa_config.sandbox in tf/variables.tf)
   apiKey: "{{secret_key}}"
   resources:
     limits:
       cpu: 1000m
       memory: 2048Mi
-    requests:
+    requests:  # required by HPA for CPU/memory utilization metrics
       cpu: 500m
       memory: 1024Mi
 enterprise:
@@ -145,9 +139,6 @@ enterpriseAudit:
     requests:
       cpu: 500m
       memory: 1024Mi
-enterpriseCollector:
-  enabled: true
-  replicas: 1
 enterpriseFrontend:
   replicas: 3
   resources:
