@@ -9,11 +9,6 @@
 
 
 # {{s3_bucket_name}} is the bucket name for s3 access. E.g. your-bucket-name
-# {{s3_access_key}} is the access key for s3 access
-# {{s3_secret_key}} is the secret key for s3 access
-
-# {{postgres_address}} is the address for postgres access
-# {{postgres_password}} is the password for postgres access
 
 # {{rds_address}} is the address for rds access. Default is dify-eks-cluster-aurora-postgres.cluster-12345678.us-east-2.rds.amazonaws.com
 # {{rds_password}} is the password for rds access. Default is DifyRdsPassword123!
@@ -26,7 +21,6 @@
 #
 #
 # {{redis_address}} is the address for redis access
-# {{redis_password}} is the password for redis access
 
 
 # {{opensearch_address}} is the address for opensearch access. E.g. vpc-dify-eks-cluster-opensearch-12345678.us-east-2.es.amazonaws.com
