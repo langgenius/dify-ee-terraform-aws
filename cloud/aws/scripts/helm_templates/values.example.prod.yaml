@@ -237,15 +237,14 @@ gateway:
     requests:
       cpu: 500m
       memory: 1024Mi
-minio:
-  replicas: 1
+enterpriseCollector:
   resources:
     limits:
       cpu: 1000m
-      memory: 2048Mi
+      memory: 1024Mi
     requests:
       cpu: 500m
-      memory: 1024Mi
+      memory: 512Mi
 
 ###################################
 # Persistence Configration
