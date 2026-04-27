@@ -72,19 +72,21 @@ worker:
   replicas: 3
   celeryWorkerAmount: 1
   serviceAccountName: "dify-api-sa"
-# additionalWorkers (optional): the `worker` above already consumes every
-# Celery queue, including trigger queues (schedule_poller, schedule_executor,
-# triggered_workflow_dispatcher, trigger_refresh_executor) — trigger support
-# was folded into the common worker, no separate trigger-worker needed.
-# Define `additionalWorkers:` only if you want to split specific queues onto
-# dedicated pods for independent scaling. Example:
-#
-# additionalWorkers:
+# Override chart default additionalWorkers list to disable the built-in
+# trigger-worker. The main `worker` above already consumes every Celery queue
+# (including the trigger queues: schedule_poller, schedule_executor,
+# triggered_workflow_dispatcher, trigger_refresh_executor), and the chart's
+# trigger-worker has no IRSA service-account binding so it crash-loops on
+# any S3 call (NoCredentialsError). Setting the list explicitly replaces
+# the chart default — to split queues onto dedicated pods, append entries:
 #   - name: workflow-worker
 #     enabled: true
 #     replicas: 1
 #     celeryQueues: "workflow,workflow_storage,workflow_based_app_execution"
 #     celeryWorkerAmount: 2
+additionalWorkers:
+  - name: trigger-worker
+    enabled: false
 workerBeat:
   replicas: 1
   serviceAccountName: "dify-api-sa"

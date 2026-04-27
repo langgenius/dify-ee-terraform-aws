@@ -87,14 +87,13 @@ worker:
     requests:  # required by HPA for CPU/memory utilization metrics
       cpu: 500m
       memory: 1024Mi
-# additionalWorkers (optional): the `worker` above already consumes every
-# Celery queue, including trigger queues (schedule_poller, schedule_executor,
-# triggered_workflow_dispatcher, trigger_refresh_executor) — trigger support
-# was folded into the common worker, no separate trigger-worker needed.
-# Define `additionalWorkers:` only if you want to split specific queues onto
-# dedicated pods for independent scaling. Example:
-#
-# additionalWorkers:
+# Override chart default additionalWorkers list to disable the built-in
+# trigger-worker. The main `worker` above already consumes every Celery queue
+# (including the trigger queues: schedule_poller, schedule_executor,
+# triggered_workflow_dispatcher, trigger_refresh_executor), and the chart's
+# trigger-worker has no IRSA service-account binding so it crash-loops on
+# any S3 call (NoCredentialsError). Setting the list explicitly replaces
+# the chart default — to split queues onto dedicated pods, append entries:
 #   - name: workflow-worker
 #     enabled: true
 #     replicas: 1
@@ -103,6 +102,9 @@ worker:
 #
 # Note: HPA is not currently wired up for additionalWorkers — any pods you
 # declare here scale via the static `replicas:` value above.
+additionalWorkers:
+  - name: trigger-worker
+    enabled: false
 workerBeat:
   resources:
     limits:
