@@ -163,7 +163,7 @@ get_aws_certificates() {
     local cert_info
     
     # Get certificate list from AWS (no logging here to avoid polluting the output)
-    cert_info=$(aws acm list-certificates --region "${AWS_REGION}" --certificate-statuses ISSUED 2>/dev/null || echo "")
+    cert_info=$(aws acm list-certificates --region "${AWS_REGION}" --certificate-statuses ISSUED --output json 2>/dev/null || echo "")
     
     if [ -z "$cert_info" ] || [ "$(echo "$cert_info" | jq '.CertificateSummaryList | length')" -eq 0 ]; then
         return 1
@@ -215,15 +215,22 @@ replace_template() {
     if [ -z "${APP_SECRET_KEY:-}" ]; then
         APP_SECRET_KEY=$(openssl rand -base64 42)
     fi
+
+    # Generate a base64 32-byte key for enterprise.passwordEncryptionKey (3.9.x).
+    # The chart ships a public default; MUST be overridden in production.
+    if [ -z "${PASSWORD_ENCRYPTION_KEY:-}" ]; then
+        PASSWORD_ENCRYPTION_KEY=$(openssl rand -base64 32)
+    fi
     
-    # Prepare S3 endpoint
+    # Prepare AWS service suffix (used for ECR repo URL and ARN rendering).
+    # S3 endpoint is intentionally hardcoded to "" in templates — setting it
+    # propagates to kaniko's S3_ENDPOINT env and misroutes STS AssumeRoleWithWebIdentity.
     local region="${AWS_REGION:-us-east-1}"
     local aws_service_suffix="amazonaws.com"
     if [[ "$region" == cn-* ]]; then
         aws_service_suffix="amazonaws.com.cn"
     fi
-    S3_ENDPOINT="https://s3.${region}.${aws_service_suffix}"
-    
+
     # Replace placeholders with default values for undefined variables
     sed -i.bak "s|{{local_domain}}|${domain}|g" "$temp_file"
     sed -i.bak "s|{{region}}|${AWS_REGION:-us-east-1}|g" "$temp_file"
@@ -232,12 +239,12 @@ replace_template() {
     sed -i.bak "s|{{cluster_name}}|${CLUSTER_NAME:-}|g" "$temp_file"
     sed -i.bak "s|{{deployment_id}}|${DEPLOYMENT_ID:-}|g" "$temp_file"
     sed -i.bak "s|{{secret_key}}|${APP_SECRET_KEY}|g" "$temp_file"
+    sed -i.bak "s|{{password_encryption_key}}|${PASSWORD_ENCRYPTION_KEY}|g" "$temp_file"
     
-    # S3 related
+    # S3 related ({{s3_endpoint}} is intentionally absent — templates hardcode "")
     sed -i.bak "s|{{s3_bucket}}|${S3_BUCKET_NAME:-}|g" "$temp_file"
     sed -i.bak "s|{{s3_bucket_name}}|${S3_BUCKET_NAME:-}|g" "$temp_file"
     sed -i.bak "s|{{bucket_name}}|${S3_BUCKET_NAME:-}|g" "$temp_file"
-    sed -i.bak "s|{{s3_endpoint}}|${S3_ENDPOINT}|g" "$temp_file"
     
     # RDS related
     sed -i.bak "s|{{rds_endpoint}}|${RDS_ENDPOINT:-}|g" "$temp_file"

@@ -1,0 +1,1345 @@
+# Dify 企业版 Helm chart v3.9.1 的带注释参考 values 文件。
+# 于 2026-04-23 基于上游 chart 的 values.yaml 生成，并添加了中文说明。
+# 仅作为文档参考使用 —— 请挑选实际需要的字段复制到自己的 values 文件中。
+#
+# 来源：langgenius/dify-helm, chart 版本 3.9.1。
+
+global:
+  # 部署版本。自托管 / 私有部署请使用 "SELF_HOSTED"；
+  # 由 Dify 官方运营的托管 SaaS 使用 "CLOUD"。
+  edition: "SELF_HOSTED"
+  # 用于签名会话 cookie 以及加密数据库敏感字段的密钥。
+  # 必须是高强度随机字符串 —— 使用 `openssl rand -base64 42` 生成。
+  appSecretKey: "#REPLACE_ME#"
+  # 内部（服务间）API 调用使用的密钥。
+  # 使用 `openssl rand -base64 42` 生成高强度密钥。
+  innerApiKey: "UY8Qri0LOKpDO9eckiY8dvOgtJynMGaO6XikQ6J1Tjdsafon0OeBYrXW"
+  # 集群是否通过 HTTPS 对外暴露。会影响 API / web 服务返回的 URL。
+  # true => https:// 且端口 443；false => http:// 且使用下面的 externalPort。
+  useTLS: false
+  # 向浏览器公布的对外端口。仅在 useTLS=false 或使用非标准端口
+  # （例如 HTTPS 用 8443、HTTP 用 8080）时生效。
+  externalPort: 80
+  # 控制台 API 域名（OAuth 授权回调目标）。留空则复用当前浏览器来源。
+  # 示例：console.dify.ai
+  consoleApiDomain: ""
+  # 控制台前端域名，用于 URL 组合与 CORS。留空则复用当前来源。
+  # 示例：console.dify.ai
+  consoleWebDomain: ""
+  # 服务 API 域名（应用中显示的 "Service API Base URL"）。
+  # 留空则复用当前来源。示例：api.dify.ai
+  serviceApiDomain: ""
+  # WebApp API 后端域名（前端 WebApp 调用的地址）。
+  # 留空则复用当前来源。示例：app.dify.ai
+  appApiDomain: ""
+  # WebApp 前端域名（作为 WebApp 基础 URL 渲染给终端用户）。
+  # 留空则复用当前来源。示例：app.dify.ai
+  appWebDomain: ""
+  # 用于签名的文件预览 / 下载 URL 域名。图片预览 URL 会签名并在 5 分钟后过期，
+  # 以防止伪造 / 盗链。
+  filesDomain: ""
+  # 企业版服务域名（企业版前端请求该域名）。
+  enterpriseDomain: ""
+  # Trigger 服务域名（api / worker 在触发器功能中会用到）。
+  # 留空则触发器相关功能可能无法工作。示例：trigger.dify.ai
+  triggerDomain: ""
+  # 仅当 plugin_daemon 运行在其他集群时才需要设置。否则会自动使用集群内 Service DNS。
+  pluginDaemonDomain: ""
+  # 为 true 时，数据库迁移作为 initContainer 在应用启动前先执行，
+  # 迁移成功后主容器才会启动。
+  dbMigrationEnabled: true
+  rag:
+    # RAG ETL 管道类型："dify"（内置）或 "Unstructured"（外部 API）。
+    etlType: "dify"
+    # 关键词索引存储位置："object_storage"（MinIO/S3）或 "database"（数据库）。
+    keywordDataSourceType: "object_storage"
+    # RAG 检索中 top-k 的硬上限（UI 滑块最大值）。
+    topKMaxValue: 10
+    # 长文档索引时每个分块的最大 token 数（RAG chunking）。
+    indexingMaxSegmentationTokensLength: 4000
+  integrations:
+    notion:
+      # "public" 使用 Notion OAuth 应用；"internal" 使用内部集成 token。
+      integrationType: "internal"
+      # Notion OAuth 应用的 client id（public 集成）。
+      clientId: ""
+      # Notion OAuth 应用的 client secret（public 集成）。
+      clientSecret: ""
+      # 内部集成的 secret token（internal 集成）。
+      internalSecret: ""
+  marketplace:
+    # 启用插件 / 应用市场。
+    enabled: true
+    # 暴露给用户的市场前端 URL。
+    url: "https://marketplace.dify.ai"
+    # 后端查询的市场 API 端点。
+    apiUrl: "https://marketplace.dify.ai"
+  # 跨集群插件同步（Plugin DR，灾备）。
+  pluginDr:
+    enabled: false
+  log:
+    # 日志输出格式，"text" 或 "json"。
+    outputFormat: "json"
+  # OpenTelemetry 链路追踪 / 指标导出。需要 enterpriseCollector.enabled=true。
+  otel:
+    enabled: true
+    # Trace 采样率，0.0–1.0。空字符串表示使用 SDK 默认值。
+    samplingRate: "0.2"
+    # 批量 span 处理器调度延迟（毫秒）。
+    batchExportScheduleDelay: "5000"
+    # 批处理器最大队列大小。
+    maxQueueSize: "2048"
+    # 批处理器单次导出批大小上限。
+    maxExportBatchSize: "512"
+    # 周期性指标导出间隔（毫秒）。
+    metricExportInterval: "60000"
+    # 单批次 trace 导出超时（毫秒）。
+    batchExportTimeout: "30000"
+    # 单批次指标导出超时（毫秒）。
+    metricExportTimeout: "30000"
+
+    sender:
+      otlp:
+        # 额外的 OTLP 请求头，格式为 "key=value,key2=value2"。
+        headers: ""
+
+      # 上报给 OTel collector 的 service.name 属性。
+      serviceName: "dify-api-otel"
+
+      # 是否在 span 中包含 prompt / 响应内容。仅在信任采集链路时开启 ——
+      # 内容中可能包含用户数据。
+      includeContent: false
+  # 将私有 / 自签名 CA 证书挂载到所有 Dify Pod 内。
+  customCA:
+    enabled: false
+    # 持有 CA 证书的已存在 k8s Secret 名称。
+    # 注意：修改该 Secret 需要重启 Pod —— 合并后的 CA bundle 由 initContainer
+    # 在 Pod 启动时生成一次。
+    existingSecret: ""
+    # Secret 中作为 PEM 格式 CA 证书的键名。
+    key: ca.crt
+    # 合并后的 CA bundle 在每个容器内的挂载路径。
+    mountPath: /etc/dify/custom-ca
+    # 用于将系统 CA 存储与自定义 CA 合并的 initContainer 镜像。
+    # 必须包含 /etc/ssl/certs/ca-certificates.crt（Debian/Ubuntu）或
+    # /etc/ssl/cert.pem（Alpine）。离线集群请镜像到内部 registry 并在此处指定。示例：
+    #   - alpine:3.20（默认，需要 Docker Hub 访问）
+    #   - your-registry.company.com/alpine:3.20
+    #   - your-registry.company.com/ubuntu:22.04
+    initImage: alpine:3.20
+  # 附加到所有 Dify 工作负载 Pod 模板上的标签。留空时忽略。
+  podLabels: {}
+
+ingress:
+  # 启用 Kubernetes Ingress 资源用于外部访问。如果直接通过自带的 Caddy gateway
+  # + Service/LB 暴露流量，可保持 false。
+  enabled: false
+  # 使用 IP 而非 DNS 主机名进行路由。仅非企业版可用 —— EE 必须使用 DNS。
+  useIpAsHost: false
+  # IngressClass 名称（nginx、traefik、alb 等）。必须对应集群中已安装的控制器；
+  # 留空 "" 则使用集群默认 IngressClass。
+  className: ""
+  # 作用于 Ingress 的注解 —— 各控制器的调优参数放这里。
+  # 示例：kubernetes.io/tls-acme: "true"
+  annotations: {}
+  # 符合 Kubernetes Ingress 规范的 TLS 配置块（[{hosts, secretName}] 列表）。
+  tls: []
+
+###################################
+# api —— Dify 核心后端（Flask/Python）
+###################################
+api:
+  enabled: true
+  image:
+    # EE 镜像；离线环境下请镜像到内部 registry。
+    repository: langgenius/dify-ee-api
+    # 留空则回退到 Chart.yaml 的 appVersion。
+    tag: "3.9.1"
+  # 静态副本数。当 HPA 管理伸缩时设置为 1（HPA 会覆盖该值）。
+  replicas: 1
+  # 容器资源。使用基于利用率的 HPA 时必须配置 requests。
+  resources: {}
+  # 要绑定的 ServiceAccount（用于 IRSA / Workload Identity）。
+  serviceAccountName: ""
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  # 较长的探针窗口为首次启动时的数据库迁移留出时间。
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 5001
+      scheme: HTTP
+    initialDelaySeconds: 120
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 3
+    failureThreshold: 30
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 5001
+      scheme: HTTP
+    initialDelaySeconds: 300  # 5 分钟 —— 允许长时间迁移
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 3
+    failureThreshold: 3
+  # 附加到 api 容器的额外环境变量。
+  # 示例：
+  # extraEnv:
+  #   - name: MY_FLAG
+  #     value: "1"
+  extraEnv:
+  # 部署模式："PRODUCTION" 或 "DEVELOPMENT"。
+  deployEnv: "PRODUCTION"
+  # Web App API 的 CORS allow-origin。
+  webApiCorsAllowOrigins: "*"
+  # 控制台 API 的 CORS allow-origin。
+  consoleCorsAllowOrigins: "*"
+  # 每个 api Pod 的 gunicorn worker 进程数（CPU 密集型；通过 replicas/HPA 扩展）。
+  serverWorkerAmount: 1
+  # 更新检查地址（离线集群请设置为 "" 或本地镜像）。
+  checkUpdateUrl: "https://updates.dify.ai"
+  innerApi:
+    # 是否暴露内部 admin API（供企业版 / 插件服务使用）。
+    enabled: true
+  oauth:
+    redirectPath: "/console/api/oauth/authorize"
+    github:
+      clientId: ""
+      clientSecret: ""
+    google:
+      clientId: ""
+      clientSecret: ""
+  db:
+    # 每个 api Pod 的 SQLAlchemy 连接池大小（与 replicas 相乘即总连接数）。
+    poolSize: 250
+    poolRecycle: 3600
+  limits:
+    # 单次上传文件大小上限（MB）。
+    uploadFileSize: 15
+    # 批量上传时的最大文件数。
+    uploadFileBatchCount: 5
+    # 单次上传图片大小上限（MB）。
+    uploadImageFileSize: 5
+  sentry:
+    enabled: false
+    dsn: ""
+    tracesSampleRate: 1.0
+    profilesSampleRate: 1.0
+  # 内置工具排序提示（固定 id、包含 / 排除 glob）。
+  positionTool:
+    pins: ""
+    includes: ""
+    excludes: ""
+  # 模型提供方排序提示。
+  positionProvider:
+    pins: ""
+    includes: ""
+    excludes: ""
+
+###################################
+# worker —— Celery worker（默认消费所有队列）
+###################################
+worker:
+  enabled: true
+  image:
+    # 与 api 使用同一镜像（worker 是使用不同 entrypoint 的 api 镜像）。
+    repository: langgenius/dify-ee-api
+    tag: "3.9.1"
+  replicas: 1
+  resources: {}
+  serviceAccountName: ""
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  readinessProbe: {}
+  livenessProbe: {}
+  extraEnv:
+  # 示例：
+  # extraEnv:
+  #   - name: MY_FLAG
+  #     value: "1"
+  # 每个 Celery worker 进程的并发数。
+  celeryWorkerAmount: 1
+  db:
+    poolSize: 250
+    poolRecycle: 3600
+  sentry:
+    enabled: false
+    dsn: ""
+    tracesSampleRate: 1.0
+    profilesSampleRate: 1.0
+
+###################################
+# additionalWorkers —— 把单一 worker 拆分为按队列专精的 worker 池
+# 除非需要独立扩展特定队列，否则保持全部禁用。
+# 启用这些附加 worker 时，通常要将 worker.enabled 设为 false 以避免重复消费。
+###################################
+additionalWorkers:
+  # 数据集 & RAG 管道处理。
+  - name: dataset-worker
+    enabled: false
+    replicas: 1
+    celeryQueues: "dataset,priority_dataset,pipeline,priority_pipeline"
+    celeryWorkerAmount: 4
+    resources: {}
+    nodeSelector: {}
+    affinity: {}
+    tolerations: []
+    extraEnv: []
+
+  # 工作流执行。
+  - name: workflow-worker
+    enabled: false
+    replicas: 1
+    celeryQueues: "workflow,workflow_storage,workflow_based_app_execution"
+    celeryWorkerAmount: 2
+    resources: {}
+    nodeSelector: {}
+    affinity: {}
+    tolerations: []
+    extraEnv: []
+
+  # 轻量级后台任务（邮件、追踪、数据保留、遥测等）。
+  - name: general-worker
+    enabled: false
+    replicas: 1
+    celeryQueues: "mail,ops_trace,app_deletion,conversation,api_token,plugin,retention,enterprise_telemetry"
+    celeryWorkerAmount: 1
+    resources: {}
+    nodeSelector: {}
+    affinity: {}
+    tolerations: []
+    extraEnv: []
+
+  # Trigger worker —— 默认启用（调度与触发分发队列）。
+  - name: trigger-worker
+    enabled: true
+    replicas: 1
+    celeryQueues: "schedule_poller,schedule_executor,triggered_workflow_dispatcher,trigger_refresh_executor"
+    celeryWorkerAmount: 1
+    resources: {}
+    nodeSelector: {}
+    affinity: {}
+    tolerations: []
+    extraEnv: []
+
+###################################
+# workerBeat —— Celery Beat 调度器（单例，请勿扩容超过 1）
+###################################
+workerBeat:
+  enabled: true
+  image:
+    repository: langgenius/dify-ee-api
+    tag: "3.9.1"
+  resources: {}
+  serviceAccountName: ""
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  readinessProbe: {}
+  livenessProbe: {}
+  extraEnv:
+  # 示例：
+  # extraEnv:
+  #   - name: MY_FLAG
+  #     value: "1"
+  db:
+    poolSize: 30
+    poolRecycle: 3600
+  # 周期性清理过期工作流执行日志。
+  enableWorkflowLogCleanup: false
+
+###################################
+# web —— Next.js 前端（控制台 + WebApp）
+###################################
+web:
+  enabled: true
+  image:
+    repository: langgenius/dify-ee-web
+    tag: "3.9.1"
+  # 可选的 logo / favicon 覆盖，通过 initContainer（busybox）在运行时注入到镜像中。
+  # 资源请提供 base64 编码。
+  logoConfig:
+    enabled: false
+    image:
+      repository: busybox
+      tag: "1.36.1"
+    # Base64 编码的 favicon.ico。
+    faviconIcoBase64: ""
+    # Base64 编码的 logo（PNG），显示在站点头部。
+    logoSitePngBase64: ""
+  replicas: 1
+  resources: {}
+  serviceAccountName: ""
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  readinessProbe:
+    initialDelaySeconds: 3
+    failureThreshold: 3
+    periodSeconds: 10
+    successThreshold: 1
+    tcpSocket:
+      port: 3000
+    timeoutSeconds: 1
+  livenessProbe:
+    failureThreshold: 3
+    periodSeconds: 10
+    successThreshold: 1
+    tcpSocket:
+      port: 3000
+    timeoutSeconds: 1
+  extraEnv:
+  # 示例：
+  # extraEnv:
+  #   - name: MY_FLAG
+  #     value: "1"
+  sentry:
+    enabled: false
+    dsn: ""
+    tracesSampleRate: 1.0
+    profilesSampleRate: 1.0
+
+###################################
+# sandbox —— 沙箱代码执行（Python / Node）
+###################################
+sandbox:
+  enabled: true
+  image:
+    repository: langgenius/dify-ee-sandbox
+    tag: "3.9.1"
+  replicas: 1
+  resources: {}
+  serviceAccountName: ""
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  # 由于需要拉取基础依赖，sandbox 启动较慢 —— 允许较多探针失败次数。
+  readinessProbe:
+    failureThreshold: 60
+    initialDelaySeconds: 3
+    periodSeconds: 3
+    successThreshold: 1
+    tcpSocket:
+      port: 8194
+    timeoutSeconds: 3
+  livenessProbe:
+    failureThreshold: 3
+    periodSeconds: 3
+    successThreshold: 1
+    tcpSocket:
+      port: 8194
+    timeoutSeconds: 1
+  extraEnv:
+  # 示例：
+  # extraEnv:
+  #   - name: MY_FLAG
+  #     value: "1"
+  # 并发 sandbox worker 数量（Python 进程）。
+  maxWorkers: 4
+  # 单个 worker 在重启前处理的最大请求数。
+  maxRequests: 50
+  # 单次代码运行的总超时（秒）。
+  workerTimeout: 15
+  # sandbox 内部可用的额外 pip 包。
+  pythonRequirements: |
+    # requirements.txt 的内容
+    # 示例：
+    # fastapi==0.104.1
+    # pydantic==2.5.1
+
+###################################
+# enterprise —— EE 控制面（工作区同步、许可证、SSO）
+###################################
+enterprise:
+  enabled: true
+  image:
+    repository: langgenius/dify-ee-enterprise
+    tag: "3.9.1"
+  replicas: 1
+  resources: {}
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  readinessProbe:
+    failureThreshold: 3
+    httpGet:
+      path: /v1/healthz
+      port: 8082
+      scheme: HTTP
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 3
+  livenessProbe:
+    failureThreshold: 3
+    httpGet:
+      path: /v1/healthz
+      port: 8082
+      scheme: HTTP
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 3
+  extraEnv:
+  # 示例：
+  # extraEnv:
+  #   - name: MY_FLAG
+  #     value: "1"
+  # 必须与 api.appSecretKey 保持一致（或使用另一个高强度随机密钥）。
+  appSecretKey: "#REPLACE_ME#"
+  # admin API 签名 token 使用的 salt。
+  adminAPIsSecretKeySalt: "#REPLACE_ME#"
+  innerApi:
+    enabled: true
+  serviceAccountName: "dify-enterprise"
+  # "online" 从 licenseServer 获取；"offline" 使用本地安装的许可证文件。
+  licenseMode: "online"
+  licenseServer: "https://licenses.dify.ai/server"
+  # 当 IdP 使用自签名 / 私有 CA 的 TLS 证书时，可以设为 true（安全性较低）
+  # 或优先通过 global.customCA 安装 CA（推荐）。
+  consoleSSOSkipCertVerify: false
+  webSSOSkipCertVerify: false
+  dashboardSSOSkipCertVerify: false
+  serverTimeout: "60s"
+  grpcServerTimeout: "60s"
+  # 定期与 IdP 同步工作区成员 / 角色的 cron 表达式。
+  workspaceSyncCron: "*/5 * * * *"
+  workspaceSyncTimeout: "30s"
+  # 用于加密密码策略相关数据的 32 字节 AES-256 密钥（base64 编码）。
+  # 使用 `openssl rand -base64 32` 生成。
+  passwordEncryptionKey: "xHBzZKP288fiIUdCkYJW5Px/16kCqkJucXue6x/97eo="
+  # 调用 plugin_manager 时的 gRPC 客户端超时。
+  pluginManagerClientTimeout: "60s"
+
+###################################
+# enterpriseCollector —— 用于追踪 / 指标的 OTel Collector
+###################################
+enterpriseCollector:
+  enabled: true
+  image:
+    repository: langgenius/dify-ee-collector
+    tag: "3.9.1"
+  replicas: 1
+  resources: {}
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  extraEnv:
+  # 示例：
+  # extraEnv:
+  #   - name: MY_FLAG
+  #     value: "1"
+  serviceAccountName: ""
+  # 上游默认注释了 readinessProbe / livenessProbe —— 如果需要在 collector 的 8080 端口
+  # 显式进行 TCP 探针，可取消注释。
+  # readinessProbe:
+  #   tcpSocket: { port: 8080 }
+  #   initialDelaySeconds: 30
+  # livenessProbe:
+  #   tcpSocket: { port: 8080 }
+  #   initialDelaySeconds: 20
+  # 追加到 otel-collector 配置的自由 YAML，可用于增加 exporter / pipeline。
+  # 参考 https://opentelemetry.io/docs/collector/configuration/
+  extraConfig: |
+    # otel collector 的 yaml 配置
+    # 可用它完全自定义 otel collector
+    # 参见 https://opentelemetry.io/docs/collector/configuration/
+  # Collector 发送队列大小。默认值基于 512 MiB 内存上限和 512 的批大小假设 ——
+  # 调整这些数值时请按比例放大。
+  sendingQueues:
+    trace:
+      size: 64
+    metric:
+      size: 256
+
+###################################
+# enterpriseAudit —— EE 审计日志服务
+###################################
+enterpriseAudit:
+  enabled: true
+  image:
+    repository: langgenius/dify-ee-audit
+    tag: "3.9.1"
+  replicas: 1
+  resources: {}
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  readinessProbe:
+    failureThreshold: 3
+    httpGet:
+      path: /v1/healthz
+      port: 8083
+      scheme: HTTP
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 3
+  livenessProbe:
+    failureThreshold: 3
+    httpGet:
+      path: /v1/healthz
+      port: 8083
+      scheme: HTTP
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 3
+  extraEnv:
+  # 示例：
+  # extraEnv:
+  #   - name: MY_FLAG
+  #     value: "1"
+  # 后台的 "solidify" 任务 —— 将旧审计记录归档到冷存储表。
+  scheduler:
+    solidifyCheckCron: "0 0 */1 * *" # 分 时 日 月 周
+    solidifyDelayDays: 90
+    timeout: "600s"
+  # 内部消息队列调优参数。
+  mq:
+    checkInterval: "5s"
+    syncThreshold: 200
+    maxWait: "10s"
+  serverTimeout: "60s"
+  grpcServerTimeout: "60s"
+  downloadTimeout: "60s"
+  serviceAccountName: ""
+
+###################################
+# enterpriseFrontend —— EE 管理端 UI（Next.js）
+###################################
+enterpriseFrontend:
+  enabled: true
+  image:
+    repository: langgenius/dify-ee-enterprise-frontend
+    tag: "3.9.1"
+  replicas: 1
+  resources: {}
+  serviceAccountName: ""
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  readinessProbe:
+    initialDelaySeconds: 3
+    failureThreshold: 3
+    periodSeconds: 10
+    successThreshold: 1
+    tcpSocket:
+      port: 3000
+    timeoutSeconds: 1
+  livenessProbe:
+    failureThreshold: 3
+    periodSeconds: 10
+    successThreshold: 1
+    tcpSocket:
+      port: 3000
+    timeoutSeconds: 1
+  extraEnv:
+  # 示例：
+  # extraEnv:
+  #   - name: MY_FLAG
+  #     value: "1"
+
+###################################
+# ssrfProxy —— 防止 SSRF 访问私有网段的 Squid 正向代理
+###################################
+ssrfProxy:
+  enabled: true
+  image:
+    repository: ubuntu/squid
+    tag: "6.13-25.04_beta"
+  replicas: 1
+  resources: {}
+  serviceAccountName: ""
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  readinessProbe: {}
+  livenessProbe: {}
+  # 反向代理块使用的自定义 sandbox 主机名（留空使用默认）。
+  # 示例："my-release-dify-sandbox-svc.my-namespace.svc.cluster.local"
+  sandboxHost: ""
+  extraEnv:
+  # 示例：
+  # extraEnv:
+  #   - name: MY_FLAG
+  #     value: "1"
+  # 完整的 squid.conf。如果不是非常清楚后果，请不要删除 private_dst / SSL_ports
+  # 相关规则 —— 它们是真正的 SSRF 防护。
+  squidConf: |
+    acl localnet src 0.0.0.1-0.255.255.255	# RFC 1122 "this" network (LAN)
+    acl localnet src 10.0.0.0/8		# RFC 1918 local private network (LAN)
+    acl localnet src 100.64.0.0/10		# RFC 6598 shared address space (CGN)
+    acl localnet src 169.254.0.0/16 	# RFC 3927 link-local (directly plugged) machines
+    acl localnet src 172.16.0.0/12		# RFC 1918 local private network (LAN)
+    acl localnet src 192.168.0.0/16		# RFC 1918 local private network (LAN)
+    acl localnet src fc00::/7       	# RFC 4193 local private network range
+    acl localnet src fe80::/10      	# RFC 4291 link-local (directly plugged) machines
+    acl private_dst dst 0.0.0.0/8		# "This" network
+    acl private_dst dst 10.0.0.0/8		# Private network (Class A)
+    acl private_dst dst 100.64.0.0/10	# Carrier-grade NAT
+    acl private_dst dst 127.0.0.0/8		# Loopback
+    acl private_dst dst 169.254.0.0/16	# Link-local
+    acl private_dst dst 172.16.0.0/12	# Private network (Class B)
+    acl private_dst dst 192.168.0.0/16	# Private network (Class C)
+    acl private_dst dst fc00::/7		# IPv6 private network
+    acl private_dst dst fe80::/10		# IPv6 link-local
+    acl private_dst dst ::1/128		# IPv6 loopback
+    acl SSL_ports port 443
+    acl Safe_ports port 80		# http
+    acl Safe_ports port 21		# ftp
+    acl Safe_ports port 443		# https
+    acl Safe_ports port 70		# gopher
+    acl Safe_ports port 210		# wais
+    acl Safe_ports port 1025-65535	# unregistered ports
+    acl Safe_ports port 280		# http-mgmt
+    acl Safe_ports port 488		# gss-http
+    acl Safe_ports port 591		# filemaker
+    acl Safe_ports port 777		# multiling http
+    acl CONNECT method CONNECT
+    http_access deny !Safe_ports
+    http_access deny CONNECT !SSL_ports
+    http_access allow localhost manager
+    http_access deny manager
+    http_access allow localhost
+    http_access deny private_dst		# 阻止访问私有 / 内网 IP（SSRF 防护）
+    include /etc/squid/conf.d/*.conf
+    http_access deny all
+
+    ################################## Proxy Server ################################
+    http_port 3128
+    coredump_dir /var/spool/squid
+    refresh_pattern ^ftp:		1440	20%	10080
+    refresh_pattern ^gopher:	1440	0%	1440
+    refresh_pattern -i (/cgi-bin/|\?) 0	0%	0
+    refresh_pattern \/(Packages|Sources)(|\.bz2|\.gz|\.xz)$ 0 0% 0 refresh-ims
+    refresh_pattern \/Release(|\.gpg)$ 0 0% 0 refresh-ims
+    refresh_pattern \/InRelease$ 0 0% 0 refresh-ims
+    refresh_pattern \/(Translation-.*)(|\.bz2|\.gz|\.xz)$ 0 0% 0 refresh-ims
+    refresh_pattern .		0	20%	4320
+
+    # upstream proxy, set to your own upstream proxy IP to avoid SSRF attacks
+    # ====== using the upstream proxy to access the internet without any authentication ======
+    # cache_peer 127.0.0.1 parent 3128 0 no-query default
+    # never_direct allow all
+    # ====== using the upstream proxy to access the internet with authentication ======
+    # cache_peer 172.1.1.1 parent 3128 0 no-query default login=your-username:your-password
+    # never_direct allow all
+
+    ################################## Reverse Proxy To Sandbox ################################
+    http_port 8194 accel vhost
+    cache_peer {{ .Values.ssrfProxy.sandboxHost | default (printf "%s-sandbox-svc" (include "dify.fullname" .)) }} parent 8194 0 no-query originserver
+    acl src_all src all
+    http_access allow src_all
+
+###################################
+# unstructured —— 文档解析（PDF / Office 文档 -> 结构化文本）
+###################################
+unstructured:
+  enabled: true
+  image:
+    repository: downloads.unstructured.io/unstructured-io/unstructured-api
+    tag: "0.0.70"
+  replicas: 1
+  resources: {}
+  serviceAccountName: ""
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  readinessProbe: {}
+  livenessProbe: {}
+  # 使用 unstructured.io 托管的 .ppt 分析服务时的可选 API key。
+  # unstructured_api_key: {}
+  extraEnv:
+  # 示例：
+  # extraEnv:
+  #   - name: MY_FLAG
+  #     value: "1"
+
+###################################
+# plugin_daemon —— serverless Dify 插件的运行时宿主
+###################################
+plugin_daemon:
+  enabled: true
+  replicas: 1
+  image:
+    repository: langgenius/dify-ee-plugin-daemon-serverless
+    tag: 3.9.1
+  resources: {}
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  # 插件启动的硬性超时（秒）。
+  maxLaunchSeconds: 3600
+  # 为 true 时，插件签名必须校验通过才会加载。
+  forceVerifyingSignature: false
+  # 远程插件安装如何访问 daemon。NodePort 或 LoadBalancer。
+  serviceType: "NodePort"
+  # 远程插件安装回调时使用的主机 —— 请使用 LB IP 或可达的节点 IP。
+  remoteInstallHost: "127.0.0.1"
+  remoteInstallPort: "5003"
+  # 插件调用工具时单次执行的最大运行时长（秒）。
+  pluginExecuteTimeout: "360"
+  # 是否暴露 admin gRPC API（plugin_controller / plugin_connector 需要该接口）。
+  adminApiEnabled: true
+  serviceAccountName: ""
+
+###################################
+# plugin_controller —— 负责 reconcile Plugin CRD
+###################################
+plugin_controller:
+  enabled: true
+  replicas: 1
+  image:
+    repository: langgenius/dify-ee-plugin-crd
+    tag: "3.9.1"
+  resources: {}
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  # 外部 Kubernetes kubeconfig —— 当 controller 管理的集群与其运行的集群不同时使用。
+  # 参考 examples/generate-kubeconfig-secret.sh。
+  kube:
+    config:
+      secret:
+        name: ""
+        key: config
+
+###################################
+# plugin_connector —— 驱动插件构建与运行器（kaniko、ECR、GitHub Actions）
+###################################
+plugin_connector:
+  replicas: 1
+  image:
+    repository: langgenius/dify-ee-plugin-connector
+    tag: "3.9.1"
+  resources: {}
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  securityContext: {}
+  labels: {}
+  # 等待插件构建完成的最大时长（秒）。
+  maxWaitSeconds: 3600
+  # 控制器控制面 Pod 及其 worker Pod 使用的 ServiceAccount。
+  customServiceAccount: ""
+  # runner Pod 使用的 ServiceAccount（用于 IRSA / WI 拉取镜像）。
+  runnerServiceAccount: ""
+  # 为 true 时使用 HTTP（非安全）镜像仓库 —— 否则走 HTTPS。
+  insecureImageRepo: false
+  # 预先创建的 docker-registry Secret 名称（作为 imagePullSecrets）。
+  imageRepoSecret: "image-repo-secret"
+  # 推送 / 拉取插件镜像所使用的仓库前缀，例如：
+  # "123456789.dkr.ecr.us-east-1.amazonaws.com/dify-<deploymentId>"。
+  imageRepoPrefix: "docker.io/your-image-repo-prefix"
+  # 通用 OCI 仓库使用 "docker"，AWS ECR 认证流程使用 "ecr"。
+  imageRepoType: docker
+  # imageRepoType=ecr 时对应的 AWS Region。
+  ecrRegion: "us-east-1"
+  # 构建和 runner 流水线中用作 sidecar / launcher 的镜像。
+  gatewayImage: "nginx:1.29.4-alpine"
+  shaderImage: "gcr.io/kaniko-project/executor:latest"
+  busyBoxImage: "busybox:latest"
+  awsCliImage: "amazon/aws-cli:latest"
+  # 构建器实现："kaniko" 在集群内运行；GitHub 构建器将构建委托给 GitHub Actions
+  # （参见下方 .github）。
+  builderName: "kaniko"
+  # 插件 runner Pod 的资源上限。
+  pluginResourceLimits:
+    cpu: 1000m
+    memory: 3000Mi
+    ephemeralStorage: 5Gi
+  pluginResourceRequests:
+    cpu: 100m
+    memory: 50Mi
+    ephemeralStorage: 5Gi
+  # 为 true 时，对 runner 启用更严格的容器隔离。
+  secure: false
+  # 基于 GitHub Actions 的构建器配置（kaniko 之外的另一种选择）。
+  github:
+    # "auto" 会根据下方字段在 pat | app 之间自动选择。
+    authMethod: "auto"
+    # 具有 repo + workflow scope 的 PAT。大规模场景下更推荐 GitHub App 方式。
+    accessToken: ""
+    repoName: "your-repo-name"
+    actionFileName: "build.yml"
+    branch: "main"
+    imagePrefix: "docker.io/your-image-repo-prefix"
+    orgName: "your-org-name"
+    shaderImage: "gcr.io/kaniko-project/executor:latest"
+    # GitHub App 安装（在速率限制方面更优）。只需创建一次 App，
+    # 安装到目标仓库，然后将 PEM 保存到 k8s Secret。
+    app:
+      enabled: false
+      appId: "0"
+      installationId: "0"
+      privateKeySecretKey: "app.pem"
+  # 告诉 connector 针对各 Python 版本使用哪些基础镜像的 ConfigMap 内容。
+  # 离线集群请镜像到内部 registry。
+  generatorConf: |
+    generator:
+      repo: langgenius
+      python:
+        pipMirror: ""
+        preCompile: true
+        versions:
+          python3.14:
+            langgenius: docker.io/langgenius/plugin-build-base-python:3.14-secure
+          python3.13:
+            langgenius: docker.io/langgenius/plugin-build-base-python:3.13-secure
+          python3.12:
+            langgenius: docker.io/langgenius/plugin-build-base-python:3.12-secure
+  # 插件 DR（灾备）reconcile 循环的调优参数。
+  pluginDr:
+    # 增量 reconcile 循环的执行间隔。
+    reconcileInterval: "5s"
+    # 单次 reconcile / GC 分页批次的最大行数。
+    reconcileBatchSize: 100
+    # 完整（非增量）reconcile 的间隔。
+    fullReconcileInterval: "1800s"
+    # 垃圾回收的间隔。
+    gcInterval: "300s"
+    # 单实例连续应用失败多少次后会转为 dead_letter。
+    deadLetterThreshold: 5
+    # 软删除记录在硬删除之前的保留时间。
+    softDeleteRetention: "86400s"
+  # 外部 Kubernetes kubeconfig —— 参考 examples/generate-kubeconfig-secret.sh。
+  kube:
+    config:
+      secret:
+        name: ""
+        key: config
+
+###################################
+# gateway —— 在同一 host + path 下暴露所有 Dify 服务的 Caddy 反向代理
+###################################
+gateway:
+  enabled: true
+  replicas: 1
+  image:
+    repository: langgenius/dify-ee-gateway
+    tag: "3.9.1"
+  resources: {}
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+
+  # Caddy 反向代理 transport 超时。
+  transport:
+    dialTimeout: "30s"
+    keepalive: "30s"
+    keepaliveInterval: "30s"
+
+  # 额外允许的 CORS 来源。Dify 自己的域名一直被允许。
+  allowOrigins:
+    - http://localhost:3000
+    - http://localhost:3001
+    - http://localhost:5001
+    - http://localhost:3002
+  log:
+    # 从 Caddy 访问日志中剥离的字段（例如敏感 header）。
+    filterFields:
+      - request>headers>X-Csrf-Token delete
+
+###################################
+# plugin_manager —— 管理运行中的插件实例与资源指标
+###################################
+plugin_manager:
+  enabled: true
+  replicas: 1
+  image:
+    repository: langgenius/dify-ee-plugin-manager
+    tag: "3.9.1"
+  resources: {}
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  serverTimeout: "60s"
+  grpcServerTimeout: "60s"
+  # 为 "false" 时，UI 中将隐藏插件实例管理控制项。
+  k8sEnabled: "true"
+
+  # 每插件资源指标（CPU、内存、网络 I/O）的来源。可选：
+  # - "disabled": 不采集指标
+  # - "cadvisor": 从 kubelet/cAdvisor 抓取。需要 nodes 与 nodes/proxy 的 ClusterRole，
+  #   数据存储在本地临时 TSDB 中。
+  # - "prometheus"（推荐）: 从外部 Prometheus 读取 ——
+  #   在下方 externalPrometheus 中配置。
+  #
+  # 必需指标（参见 https://kubernetes.io/docs/reference/instrumentation/metrics/）：
+  #   container_cpu_usage_seconds_total, container_memory_working_set_bytes,
+  #   container_network_receive_bytes_total, container_network_transmit_bytes_total
+  metric:
+    source: "disabled"
+    # 仅在 source=cadvisor 时使用。
+    scrape:
+      retainPeriod: 604800s
+      tsdbBlockSizeLimitBytes: 536870912
+      scrapeTimeout: 10s
+      scrapeInterval: 20s
+      tmpDir: /tmp
+  extraEnv: []
+  # 外部 Kubernetes kubeconfig —— 参考 examples/generate-kubeconfig-secret.sh。
+  kube:
+    config:
+      secret:
+        name: ""
+        key: config
+
+
+
+###################################
+# Persistence —— 上传文件、RAG 缓存、插件产物的对象存储
+# 支持类型：local、s3、azure-blob、aliyun-oss、google-storage、
+# tencent-cos、volcengine-tos、huawei-obs
+###################################
+persistence:
+  type: "local"
+  # local —— 基于 PVC 的存储（多副本 api / worker 需要 ReadWriteMany）。
+  local:
+    mountPath: "/app/api/storage"
+    annotations:
+      # 执行 `helm uninstall` 后保留 PVC。
+      helm.sh/resource-policy: keep
+    persistentVolumeClaim:
+      # 通过名称复用已有 PVC（不再创建新的 PVC）。
+      existingClaim: ""
+      # 仅在 PV provisioner 基于 hostPath 时使用。
+      hostPath: "/data/dify"
+      ## Dify 应用数据的持久化 StorageClass
+      ## 若定义：storageClassName: <storageClass>
+      ## 若设为 "-"：storageClassName: ""，表示禁用动态置备
+      ## 若未定义（默认）或为 null：不设置 storageClassName 字段，使用默认 provisioner
+      ## `api` 和 `worker` 必须使用 ReadWriteMany 访问模式。
+      storageClass:
+      accessModes: ReadWriteMany
+      size: 5Gi
+      subPath: ""
+  # s3 —— AWS S3 或兼容 S3 的存储（MinIO、Cloudflare R2、DigitalOcean Spaces 等）。
+  s3:
+    # 原生 AWS S3 保持空字符串 ""，让 SDK 根据 region 解析 endpoint。
+    # 仅在 S3 兼容后端（R2、MinIO 等）上设置。
+    endpoint: "https://xxx.r2.cloudflarestorage.com"
+    accessKey: "#REPLACE_ME#"
+    secretKey: "#REPLACE_ME#"
+    region: "us-east-1"
+    bucketName: "your-bucket-name"
+    # "path" 或 "virtual-hosted" 风格的 URL。留空使用 SDK 默认。
+    addressType: ""
+    # 为 true 时，SDK 使用 Pod 自身的 IAM 身份（EKS 上即 IRSA），
+    # 此时忽略 accessKey / secretKey。
+    useAwsManagedIam: false
+    # MinIO / 其他 S3 兼容存储设为 false（会关闭 AWS 特有行为）。
+    useAwsS3: true
+  # azureBlob —— Azure Blob 存储。
+  azureBlob:
+    accountName: ""
+    accountKey: ""
+    containerName: ""
+    accountUrl: ""
+    # 可选 Azure EndpointSuffix，例如 "core.windows.net" 或 "core.chinacloudapi.cn"。
+    endpointSuffix: ""
+    # 使用 Azure AD Workload Identity 代替 accountKey。启用后必须确保
+    # api / worker / audit / plugin_daemon 的 ServiceAccount 是 AKS 提供的 SA，
+    # 且相关 Pod 附加标签 `azure.workload.identity/use: "true"`。
+    useManagedIdentity: false
+  # aliyunOss —— 阿里云 OSS。
+  aliyunOss:
+    endpoint: "your-endpoint"
+    bucketName: "your-bucket-name"
+    accessKey: "#REPLACE_ME#"
+    secretKey: "#REPLACE_ME#"
+    region: "ap-southeast-1"
+  # googleStorage —— Google Cloud Storage。
+  googleStorage:
+    bucketName: "your-bucket-name"
+    # Base64 编码的 service-account JSON key。
+    serviceAccountJson: ""
+  # tencentCos —— 腾讯云 COS。
+  tencentCos:
+    bucketName: "your-bucket-name"
+    region: ""
+    secretId: "#REPLACE_ME"
+    secretKey: "#REPLACE_ME"
+    scheme: "https"
+  # huaweiObs —— 华为云 OBS。
+  huaweiObs:
+    server: "your-server-url"
+    bucketName: "your-bucket-name"
+    accessKey: "#REPLACE_ME#"
+    secretKey: "#REPLACE_ME#"
+  # volcengineTos —— 字节跳动火山引擎 TOS。
+  volcengineTos:
+    bucketName: "your-bucket-name"
+    accessKey: "#REPLACE_ME#"
+    secretKey: "#REPLACE_ME#"
+    endpoint: "tos-endpoint"
+    region: "your-region"
+
+###################################
+# Mail —— 事务性邮件（注册、密码重置、通知）
+###################################
+mail:
+  # "resend"、"smtp"，或 "" 表示禁用。
+  type: ""
+  # 未指定具体发件人时使用的默认 From 地址。
+  defaultSender: "YOUR EMAIL FROM (eg: no-reply <no-reply@dify.ai>)"
+  # resend（https://resend.com）—— 托管邮件的最简单方案。
+  resend:
+    apiKey: ""
+    apiUrl: https://api.resend.com
+  smtp:
+    server: ""
+    port: 587
+    username: ""
+    password: ""
+    useTLS: false
+
+###################################
+# 外部数据库 —— Postgres / MySQL / TiDB
+# EE chart 没有内置生产级数据库；生产环境务必使用外部数据库。
+###################################
+externalDatabase:
+  enabled: false
+  # 可选值：postgres | mysql | tidb。
+  engine: "postgres"
+  host: "localhost"
+  # 默认端口：postgres=5432、mysql=3306、tidb=4000。
+  # 切换引擎时别忘了更新 port。
+  port: 5432
+  user: "postgres"
+  password: "#REPLACE_ME#"
+  timezone: "UTC"
+  # 各 Dify 服务的逻辑数据库名。这些数据库必须已经存在。
+  databases:
+    dify: "dify"
+    plugin_daemon: "dify_plugin_daemon"
+    enterprise: "enterprise"
+    audit: "audit"
+  # 每个逻辑数据库的凭据（可选）。
+  # 设置（非空）后，会覆盖上面全局的 user / password；
+  # 留空则继承全局 user / password。
+  databaseCredentials:
+    dify:
+      user: ""
+      password: ""
+    enterprise:
+      user: ""
+      password: ""
+    audit:
+      user: ""
+      password: ""
+    plugin_daemon:
+      user: ""
+      password: ""
+  # 各引擎对应的方言参数。
+  dialectOptions:
+    postgres:
+      sslMode: "require"
+      uriScheme: "postgresql"
+      # extras: "options=-c search_path=your-schema -c your-other-option=xxx"
+      extras: ""
+    mysql:
+      # MySQL / TiDB 参数，例如 charset=utf8mb4&parseTime=true&loc=UTC。
+      params: "charset=utf8mb4&parseTime=true&loc=UTC"
+      tls: false
+
+###################################
+# 内置 PostgreSQL（捆绑 sub-chart —— 仅限开发 / 演示，切勿用于生产）
+###################################
+postgresql:
+  enabled: false
+  name: postgres
+  image:
+    repository: langgenius/postgresql
+    registry: docker.io
+  global:
+    storageClass: ""
+    postgresql:
+      auth:
+        postgresPassword: "#REPLACE_ME#"
+        database: "dify"
+  #        username: ""
+  #        password: ""
+  primary:
+    initdb:
+      scripts:
+        my_init_script.sh: |
+          #!/bin/bash
+          set -e
+          echo "Creating database..."
+          PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -U postgres << 'EOF'
+          SELECT 'CREATE DATABASE enterprise' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'enterprise')\gexec
+          SELECT 'CREATE DATABASE audit' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'audit')\gexec
+          EOF
+
+###################################
+# 外部 Redis（用于 Celery broker / result 以及应用缓存）
+###################################
+externalRedis:
+  enabled: true
+  useSSL: false
+
+  host: "redis.example"
+  port: 6379
+  username: ""
+  password: "#REPLACE_ME#"
+  db: 0
+
+  # 由 Sentinel 管理的 Redis（与 `cluster` 互斥）。
+  sentinel:
+    enabled: false
+    nodes: "" # 以逗号分隔的 Redis Sentinel 节点列表（host:port）
+    serviceName: "" # Sentinel 监控的服务名
+    username: ""
+    password: "#REPLACE_ME#"
+    socketTimeout: 0.1 # 秒
+
+  # Redis Cluster 模式（与 `sentinel` 互斥）。
+  cluster:
+    enabled: false
+    nodes: "#REPLACE_ME#" # 以逗号分隔的 Redis Cluster 节点列表（host:port）
+    password: "#REPLACE_ME#"
+
+###################################
+# 内置 Redis（捆绑 sub-chart —— 仅限开发 / 演示）
+###################################
+redis:
+  enabled: false
+  image:
+    repository: langgenius/redis
+    registry: docker.io
+    tag: 6.2.16-debian-12-r3
+  global:
+    redis:
+      password: "#REPLACE_ME#"
+
+###################################
+# vectorDB —— RAG embedding 使用的向量存储
+# 仅选择其中一个 externalType；只有匹配的子字段会生效。
+# 支持：weaviate、qdrant、milvus、relyt（pgvectors）、pgvecto-rs、tencent、
+#       opensearch、elasticsearch、analyticdb、lindorm
+# 参考：https://github.com/langgenius/dify/blob/main/api/core/rag/datasource/vdb/vector_type.py
+###################################
+vectorDB:
+  useExternal: true
+  externalType: "qdrant"
+  externalWeaviate:
+    endpoint: "http://weaviate:8080"
+    apiKey: "#REPLACE_ME#"
+  # 外部 Qdrant。
+  externalQdrant:
+    endpoint: "http://your-qdrant-cluster-url.qdrant.tech/"
+    apiKey: "#REPLACE_ME#"
+  # 外部 Milvus。
+  externalMilvus:
+    # 例如 "http://localhost:19530" 或 "https://milvus-instance.example.com:19530"。
+    uri: "http://127.0.0.1:19530"
+    token: ""
+    user: ""
+    password: ""
+    database: "default"
+  externalRelyt:
+    host: "your-relyt.domain"
+    port: 5431
+    user: "postgres"
+    password: "#REPLACE_ME#"
+    database: "pgvectors"
+  externalPgVectoRS:
+    host: "your-pgvectors.domain"
+    port: 5432
+    user: "postgres"
+    password: "#REPLACE_ME#"
+    database: "pgvectors"
+  externalTencentVectorDB:
+    host: "your-tencent-vector-db.domain"
+    apiKey: "#REPLACE_ME#"
+    timeout: 30
+    username: "tencent"
+    password: "#REPLACE_ME#"
+    shard: 1
+    replicas: 2
+    database: "tencent"
+  externalOpenSearch:
+    host: "your-opensearch.domain"
+    port: 9200
+    user: ""
+    password: "#REPLACE_ME#"
+    useTLS: false
+  externalElasticsearch:
+    host: "127.0.0.1"
+    port: 9200
+    username: "elastic"
+    password: "#REPLACE_ME#"
+  externalAnalyticDB:
+    keyID: "#REPLACE_ME#"
+    keySecret: "#REPLACE_ME#"
+    regionID: "#REPLACE_ME#"
+    instanceID: "#REPLACE_ME#"
+    account: "#REPLACE_ME#"
+    password: "#REPLACE_ME#"
+    host: "#REPLACE_ME#"
+    port: 5432
+    namespace: ""
+    namespacePassword: ""
+    minConnection: 1
+    maxConnection: 5
+  externalLindorm:
+    url: "http://localhost:30070"
+    username: "admin"
+    password: "admin"
+    indexType: "hnsw"
+    distanceType: "l2"
+    usingUgc: true
+    queryTimeout: 2.0
+
+# 内置 Qdrant（捆绑 sub-chart —— 仅限开发 / 演示）。
+qdrant:
+  enabled: false
+  replicaCount: 3
+  image:
+    repository: langgenius/qdrant
+    pullPolicy: IfNotPresent
+    tag: "v1.7.3"
+  apiKey: "dify123456"
+  persistence:
+    accessModes: ["ReadWriteOnce"]
+    size: 10Gi
+  resources: {}
+    # limits:
+    #   cpu: 100m
+    #   memory: 128Mi
+    # requests:
+    #   cpu: 100m
+    #   memory: 128Mi
+
+# 内置 Weaviate（捆绑 sub-chart —— 默认禁用）。
+weaviate:
+  enabled: false
+
+# 作用于所有工作负载 Pod 的全局 imagePullSecrets。
+imagePullSecrets: []
+
+###################################
+# 外部 Prometheus —— 插件资源指标数据源
+# 如果禁用，plugin_manager 会回退到 cAdvisor（需要集群角色）或
+# "disabled" 模式 —— 参见上方 plugin_manager.metric。
+###################################
+externalPrometheus:
+  enabled: false
+  endpoint: "http://prometheus:9090"
+  timeout: 10s
+  username: ""
+  password: ""
+  # 跳过 Prometheus endpoint 的 TLS 校验。
+  insecure: true
+
+###################################
+# 外部 Kubernetes —— 将插件 CRD / Pod 部署到其它集群
+###################################
+externalKubernetes:
+  enabled: false

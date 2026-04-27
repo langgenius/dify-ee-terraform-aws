@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Dify EE on AWS · 运行时架构</title>
+<style>
+  :root {
+    --bg: #fafaf9;
+    --ink: #0f172a;
+    --muted: #475569;
+    --subtle: #94a3b8;
+    --line: #cbd5e1;
+
+    --done-fill: #e7f8ef; --done-border: #10b981; --done-dot: #10b981;
+    --wip-fill:  #d3f5ea; --wip-border:  #14b8a6; --wip-dot:  #0d9488;
+    --plan-fill: #efe9fe; --plan-border: #8b5cf6; --plan-dot: #7c3aed;
+
+    --store-fill: #f3f4f6; --store-border: #9ca3af;
+    --core-fill:  #ccfbf1; --core-border:  #0d9488;
+    --rrf-fill:   #ffedd5; --rrf-border:   #ea580c;
+    --orch-fill:  #ecfeff; --orch-border:  #0891b2;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue",
+                 "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    font-size: 13px; line-height: 1.45;
+  }
+
+  .board {
+    max-width: 1760px; margin: 24px auto; padding: 24px 28px 36px;
+    background: #fff; border-radius: 16px;
+    box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 8px 30px rgba(15,23,42,.05);
+    position: relative;
+  }
+
+  .connections {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 1; overflow: visible;
+  }
+  .connections > path {
+    fill: none; stroke-width: 1.4;
+    stroke-dasharray: 5 4; opacity: .85;
+  }
+  .connections > path.strong { stroke-width: 2.2; opacity: .95; }
+
+  /* 连线类型着色（dashed pattern 也有区分） */
+  .connections > path.k-http   { stroke: #0891b2; stroke-dasharray: 5 4; }
+  .connections > path.k-celery { stroke: #ea580c; stroke-dasharray: 2 3; }
+  .connections > path.k-data   { stroke: #64748b; stroke-dasharray: 6 3; }
+  .connections > path.k-build  { stroke: #8b5cf6; stroke-dasharray: 3 2 7 2; }
+
+  .row, header.top, .footer-note { position: relative; z-index: 2; }
+
+  header.top {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    margin-bottom: 18px;
+  }
+  header.top h1 { font-size: 18px; margin: 0; letter-spacing: .5px; }
+  header.top .sub { color: var(--muted); margin-left: 10px; font-size: 12px; }
+
+  .legend {
+    display: flex; flex-direction: column; gap: 6px;
+    font-size: 12px; color: var(--muted); align-items: flex-end;
+  }
+  .legend-group {
+    display: flex; gap: 14px; align-items: center;
+    flex-wrap: wrap; justify-content: flex-end;
+  }
+  .legend-title {
+    color: var(--ink); font-weight: 600; font-size: 11px;
+    letter-spacing: .5px; min-width: 40px;
+  }
+  .legend .item { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .dot {
+    width: 10px; height: 10px; border-radius: 50%; display: inline-block;
+    box-shadow: 0 0 0 2px #fff, 0 0 0 3px rgba(0,0,0,.06);
+  }
+  .dot.done { background: var(--done-dot); }
+  .dot.wip  { background: var(--wip-dot); }
+  .dot.plan {
+    background: var(--plan-fill);
+    border: 1.5px dashed var(--plan-border);
+    box-shadow: none; width: 12px; height: 12px;
+  }
+  .swatch {
+    display: inline-block; width: 14px; height: 10px;
+    border-radius: 3px; border: 1.5px solid transparent;
+  }
+  .swatch.store { background: var(--store-fill); border-color: var(--store-border); }
+  .swatch.core  { background: var(--core-fill);  border-color: var(--core-border); }
+  .swatch.orch  { background: var(--orch-fill);  border-color: var(--orch-border); }
+  .swatch.rrf   { background: var(--rrf-fill);   border-color: var(--rrf-border); }
+
+  .row {
+    display: grid; grid-template-columns: 120px 1fr;
+    gap: 16px; margin-bottom: 58px; align-items: stretch;
+  }
+  .row:last-of-type { margin-bottom: 14px; }
+  .row-label {
+    color: var(--muted); font-size: 13px; padding-top: 10px;
+    white-space: nowrap; letter-spacing: .3px;
+  }
+  .row-label .num { color: var(--ink); font-weight: 600; margin-right: 4px; }
+  .row-label .hint { display: block; color: var(--subtle); font-size: 11px; margin-top: 2px; }
+
+  .cards { display: flex; flex-wrap: wrap; gap: 14px; align-items: stretch; }
+
+  .card {
+    position: relative; min-width: 170px; max-width: 230px; flex: 1 1 180px;
+    padding: 12px 14px; border: 1.5px solid var(--done-border);
+    background: var(--done-fill); border-radius: 14px;
+    box-shadow: 0 1px 0 rgba(15,23,42,.03);
+  }
+  .card .title { font-weight: 600; font-size: 13.5px; margin-bottom: 4px; letter-spacing: .2px; }
+  .card .desc  { color: var(--muted); font-size: 11.5px; line-height: 1.55; }
+  .card code {
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 11px;
+    color: #334155; background: rgba(15,23,42,.04);
+    padding: 1px 4px; border-radius: 4px;
+  }
+  .card .status {
+    position: absolute; top: 10px; right: 10px;
+    width: 10px; height: 10px; border-radius: 50%;
+  }
+
+  .card.done { background: var(--done-fill); border-color: var(--done-border); }
+  .card.done .status { background: var(--done-dot); }
+  .card.wip  { background: var(--wip-fill);  border-color: var(--wip-border); }
+  .card.wip  .status { background: var(--wip-dot); }
+  .card.plan { background: var(--plan-fill); border: 1.5px dashed var(--plan-border); }
+  .card.plan .status { background: var(--plan-dot); }
+
+  .card.store { background: var(--store-fill); border-color: var(--store-border); }
+  .card.store .status { background: #9ca3af; }
+  .card.core  {
+    background: var(--core-fill); border-color: var(--core-border);
+    min-width: 230px; max-width: 280px;
+  }
+  .card.core .status { background: var(--wip-dot); }
+  .card.orch  {
+    background: var(--orch-fill); border-color: var(--orch-border);
+    min-width: 220px; max-width: 260px;
+  }
+  .card.orch .status { background: var(--orch-border); }
+  .card.rrf   { background: var(--rrf-fill); border-color: var(--rrf-border); }
+  .card.rrf .status { background: var(--rrf-border); }
+
+  .card .tag {
+    display: inline-block; margin-top: 6px;
+    font-size: 11px; color: #0369a1;
+    background: rgba(14,165,233,.1);
+    padding: 1px 6px; border-radius: 4px;
+  }
+
+  .arrow {
+    display: flex; align-items: center; justify-content: center;
+    color: var(--subtle); font-size: 22px; font-weight: 300;
+    padding: 0 2px; user-select: none; min-width: 14px;
+  }
+  .arrow.fan   { color: var(--orch-border); font-size: 20px; }
+  .arrow.merge { color: var(--rrf-border);  font-size: 20px; }
+  .arrow.soft  { color: var(--subtle); font-size: 14px; }
+
+  .divider {
+    width: 1px; background: var(--line); margin: 4px 6px; align-self: stretch;
+  }
+  .divider-label {
+    display: flex; align-items: center; color: var(--subtle);
+    font-size: 11px; letter-spacing: 1px; padding: 0 4px;
+  }
+
+  .footer-note {
+    margin-top: 14px; color: var(--muted); font-size: 11.5px;
+    border-top: 1px dashed var(--line); padding-top: 10px;
+    display: flex; flex-wrap: wrap; gap: 22px;
+  }
+  .footer-note b { color: var(--ink); }
+
+  /* Grouped sub-cluster (e.g. plugin control plane) */
+  .group {
+    position: relative;
+    border: 1.5px dashed #6366f1;
+    border-radius: 16px;
+    padding: 20px 12px 12px;
+    margin-top: 10px;
+    background: rgba(99, 102, 241, .04);
+    display: flex; gap: 10px; align-items: stretch; flex-wrap: wrap;
+  }
+  .group::before {
+    content: attr(data-label);
+    position: absolute; top: -9px; left: 14px;
+    background: #fff; padding: 0 8px;
+    font-size: 11px; color: #4338ca; letter-spacing: .5px;
+    font-weight: 700; text-transform: uppercase;
+  }
+  .group .card { min-width: 155px; max-width: 185px; flex: 1 1 160px; }
+</style>
+</head>
+<body>
+<div class="board">
+  <svg class="connections" aria-hidden="true">
+    <defs>
+      <marker id="arr-http" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto">
+        <path d="M0,0 L12,6 L0,12 L3,6 Z" fill="#0891b2" />
+      </marker>
+      <marker id="arr-celery" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto">
+        <path d="M0,0 L12,6 L0,12 L3,6 Z" fill="#ea580c" />
+      </marker>
+      <marker id="arr-data" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto">
+        <path d="M0,0 L12,6 L0,12 L3,6 Z" fill="#64748b" />
+      </marker>
+      <marker id="arr-build" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto">
+        <path d="M0,0 L12,6 L0,12 L3,6 Z" fill="#8b5cf6" />
+      </marker>
+      <marker id="dot-http" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse">
+        <circle cx="5" cy="5" r="3.8" fill="#0891b2" />
+      </marker>
+      <marker id="dot-celery" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse">
+        <circle cx="5" cy="5" r="3.8" fill="#ea580c" />
+      </marker>
+      <marker id="dot-data" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse">
+        <circle cx="5" cy="5" r="3.8" fill="#64748b" />
+      </marker>
+      <marker id="dot-build" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse">
+        <circle cx="5" cy="5" r="3.8" fill="#8b5cf6" />
+      </marker>
+    </defs>
+  </svg>
+
+  <header class="top">
+    <div>
+      <h1>Dify EE on AWS · 运行时架构<span class="sub">chart 3.9.1 · EKS · us-east-2 · deployment_id=riino</span></h1>
+    </div>
+    <div class="legend">
+      <div class="legend-group">
+        <span class="legend-title">状态</span>
+        <div class="item"><span class="dot done"></span>已部署</div>
+        <div class="item"><span class="dot wip"></span>可选/按需</div>
+        <div class="item"><span class="dot plan"></span>规划中（虚线）</div>
+      </div>
+      <div class="legend-group">
+        <span class="legend-title">角色</span>
+        <div class="item"><span class="swatch store"></span>外部存储/托管服务</div>
+        <div class="item"><span class="swatch core"></span>核心数据库</div>
+        <div class="item"><span class="swatch orch"></span>入口/调度</div>
+        <div class="item"><span class="swatch rrf"></span>构建器 (kaniko)</div>
+      </div>
+      <div class="legend-group">
+        <span class="legend-title">连线</span>
+        <div class="item"><svg width="28" height="8"><line x1="0" y1="4" x2="28" y2="4" stroke="#0891b2" stroke-width="1.6" stroke-dasharray="5 4"/></svg>HTTP 同步</div>
+        <div class="item"><svg width="28" height="8"><line x1="0" y1="4" x2="28" y2="4" stroke="#ea580c" stroke-width="1.6" stroke-dasharray="2 3"/></svg>Celery 异步</div>
+        <div class="item"><svg width="28" height="8"><line x1="0" y1="4" x2="28" y2="4" stroke="#64748b" stroke-width="1.6" stroke-dasharray="6 3"/></svg>数据读写</div>
+        <div class="item"><svg width="28" height="8"><line x1="0" y1="4" x2="28" y2="4" stroke="#8b5cf6" stroke-width="1.6" stroke-dasharray="3 2 7 2"/></svg>插件构建</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ① Edge -->
+  <div class="row">
+    <div class="row-label"><span class="num">①</span>边缘<span class="hint">Internet → VPC</span></div>
+    <div class="cards">
+      <div class="card done" id="card-dns">
+        <div class="status"></div>
+        <div class="title">Route 53 DNS</div>
+        <div class="desc">6 条主机名指向 ALB：<br/><code>console/api/app/upload/enterprise/trigger.dify.riino.site</code></div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="card done" id="card-acm">
+        <div class="status"></div>
+        <div class="title">ACM 证书</div>
+        <div class="desc">TLS 终结于 ALB<br/><code>certificate-arn</code> 注入 ingress annotation</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="card orch" id="card-alb">
+        <div class="status"></div>
+        <div class="title">ALB · internet-facing</div>
+        <div class="desc">由 AWS Load Balancer Controller 按 <code>ingress.className=alb</code> 创建<br/>监听 80/443，SSL redirect → target-type ip</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ② Gateway -->
+  <div class="row">
+    <div class="row-label"><span class="num">②</span>入口代理<span class="hint">EKS · dify ns</span></div>
+    <div class="cards">
+      <div class="card orch" id="card-gateway">
+        <div class="status"></div>
+        <div class="title">dify-gateway (Caddy)</div>
+        <div class="desc">Ingress 唯一后端 <code>dify-gateway-svc:80</code><br/>host+path 路由到 api / web / enterprise / enterprise-frontend / enterprise-audit / plugin-daemon / plugin-manager<br/>自带 audit 和 credential_patcher 插件 → Redis DB0</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ③ Frontend UI -->
+  <div class="row">
+    <div class="row-label"><span class="num">③</span>前端 UI<span class="hint">Next.js</span></div>
+    <div class="cards">
+      <div class="card done" id="card-web">
+        <div class="status"></div>
+        <div class="title">dify-web</div>
+        <div class="desc">主控制台/应用 UI<br/><code>langgenius/dify-ee-web:3.9.1</code> · :3000</div>
+      </div>
+      <div class="arrow soft">·</div>
+      <div class="card done" id="card-ent-frontend">
+        <div class="status"></div>
+        <div class="title">dify-enterprise-frontend</div>
+        <div class="desc">企业版控制台 UI<br/>serving <code>enterprise.dify.*</code></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ④ API 核心 -->
+  <div class="row">
+    <div class="row-label"><span class="num">④</span>API 核心<span class="hint">同步请求路径</span></div>
+    <div class="cards">
+      <div class="card done" id="card-api">
+        <div class="status"></div>
+        <div class="title">dify-api</div>
+        <div class="desc">主后端 (gunicorn + flask)<br/><code>dify-api-sa</code> (IRSA→S3)<br/>:5001 · 消费 <code>SERVER_WORKER_AMOUNT</code></div>
+      </div>
+      <div class="arrow soft">·</div>
+      <div class="card done" id="card-enterprise">
+        <div class="status"></div>
+        <div class="title">dify-enterprise</div>
+        <div class="desc">企业版后端（组织/SSO/许可证）<br/>:8082 主 API · :9000 inner-api</div>
+      </div>
+      <div class="arrow soft">·</div>
+      <div class="card done" id="card-audit">
+        <div class="status"></div>
+        <div class="title">dify-enterprise-audit</div>
+        <div class="desc">审计日志服务 · :8083</div>
+      </div>
+      <div class="arrow soft">·</div>
+      <div class="card done" id="card-collector">
+        <div class="status"></div>
+        <div class="title">dify-enterprise-collector</div>
+        <div class="desc">OTLP 遥测收集器<br/>:4317 gRPC · :4318 HTTP · :8889 metrics</div>
+      </div>
+      <div class="divider"></div>
+      <div class="divider-label">api 内部依赖</div>
+      <div class="card done" id="card-sandbox">
+        <div class="status"></div>
+        <div class="title">dify-sandbox</div>
+        <div class="desc">受限代码执行沙箱 · :8194<br/><code>langgenius/dify-ee-sandbox</code></div>
+      </div>
+      <div class="arrow soft">·</div>
+      <div class="card done" id="card-ssrf">
+        <div class="status"></div>
+        <div class="title">dify-ssrf-proxy</div>
+        <div class="desc">出站 HTTP 代理 (squid)<br/>:3128，防止 SSRF 直连内网</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⑤ 异步 / 插件 -->
+  <div class="row">
+    <div class="row-label"><span class="num">⑤</span>异步 / 插件<span class="hint">Celery · Plugin CRDs</span></div>
+    <div class="cards">
+      <div class="card done" id="card-worker">
+        <div class="status"></div>
+        <div class="title">dify-worker</div>
+        <div class="desc">Celery 消费者（通吃队列：dataset/pipeline/workflow/plugin/...）<br/><code>CELERY_WORKER_AMOUNT</code> 控制并发</div>
+      </div>
+      <div class="arrow soft">·</div>
+      <div class="card done" id="card-trigger">
+        <div class="status"></div>
+        <div class="title">dify-trigger-worker</div>
+        <div class="desc">chart 默认 additionalWorker<br/>专吃 trigger 队列: schedule_poller / schedule_executor / triggered_workflow_dispatcher / trigger_refresh_executor</div>
+      </div>
+      <div class="arrow soft">·</div>
+      <div class="card done" id="card-beat">
+        <div class="status"></div>
+        <div class="title">dify-worker-beat</div>
+        <div class="desc">Celery beat · 单例<br/>HPA 强制禁用（多副本会重复派发任务）</div>
+      </div>
+      <div class="arrow soft">·</div>
+      <div class="card done" id="card-unstructured">
+        <div class="status"></div>
+        <div class="title">dify-unstructured</div>
+        <div class="desc">文件解析（PDF/DOCX/... → 文本块）<br/>每副本约 8.4G 磁盘</div>
+      </div>
+      <div class="divider"></div>
+      <div class="group" data-label="插件控制平面">
+        <div class="card done" id="card-plugin-daemon">
+          <div class="status"></div>
+          <div class="title">plugin_daemon</div>
+          <div class="desc">无服务化插件执行器<br/>:5002 · DB=<code>dify_plugin_daemon</code></div>
+        </div>
+        <div class="card done" id="card-plugin-manager">
+          <div class="status"></div>
+          <div class="title">plugin_manager</div>
+          <div class="desc">插件生命周期管理 API · :8084</div>
+        </div>
+        <div class="card done" id="card-plugin-connector">
+          <div class="status"></div>
+          <div class="title">plugin_connector</div>
+          <div class="desc">镜像构建编排 + Runner 调度<br/><code>dify-plugin-crd-sa</code> (IRSA→S3+ECR push)</div>
+        </div>
+        <div class="card done" id="card-crd">
+          <div class="status"></div>
+          <div class="title">plugin_controller (CRD)</div>
+          <div class="desc">K8s Operator<br/>监听 Plugin CR 拉起 builder/runner Pod</div>
+        </div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="group" data-label="插件动态 Pods">
+        <div class="card rrf" id="card-builder">
+          <div class="status"></div>
+          <div class="title">builder Pod (kaniko)</div>
+          <div class="desc">按插件源码即时构建镜像 → 推 ECR<br/>SA: <code>dify-plugin-crd-sa</code><br/>短暂；按 CR 创建/销毁</div>
+        </div>
+        <div class="card rrf" id="card-runner">
+          <div class="status"></div>
+          <div class="title">runner Pod</div>
+          <div class="desc">插件运行时容器（如 <code>langgenius-tongyi</code> / <code>langgenius-openai</code>）<br/>:8080 · SA: <code>dify-plugin-runner-sa</code> (IRSA→ECR pull)<br/>由 plugin_connector 按插件 CR 拉起</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⑥ 外部 AWS 托管 -->
+  <div class="row">
+    <div class="row-label"><span class="num">⑥</span>外部托管服务<span class="hint">VPC 私网</span></div>
+    <div class="cards">
+      <div class="card core" id="card-rds">
+        <div class="status"></div>
+        <div class="title">Aurora PostgreSQL Serverless v2</div>
+        <div class="desc">4 库共享 1 cluster · 5432 · SSL require<br/><code>dify</code> (主) · <code>enterprise</code> · <code>audit</code> · <code>dify_plugin_daemon</code></div>
+      </div>
+      <div class="arrow soft">·</div>
+      <div class="card store" id="card-redis">
+        <div class="status"></div>
+        <div class="title">ElastiCache Redis</div>
+        <div class="desc">Celery broker + 缓存<br/>cluster mode off · :6379 · test=单节点 / prod=master-replica</div>
+      </div>
+      <div class="arrow soft">·</div>
+      <div class="card store" id="card-opensearch">
+        <div class="status"></div>
+        <div class="title">OpenSearch</div>
+        <div class="desc">向量数据库<br/><code>vectorDB.externalType=opensearch</code> · :443 TLS</div>
+      </div>
+      <div class="arrow soft">·</div>
+      <div class="card store" id="card-s3">
+        <div class="status"></div>
+        <div class="title">S3</div>
+        <div class="desc"><code>dify-riino-storage</code>·对象存储<br/>持久化: 上传文件、知识库原档、插件源码包<br/>通过 IRSA 访问（无 access key）</div>
+      </div>
+      <div class="arrow soft">·</div>
+      <div class="card store" id="card-ecr">
+        <div class="status"></div>
+        <div class="title">ECR</div>
+        <div class="desc">插件镜像仓库<br/>prefix <code>&lt;account&gt;.dkr.ecr.us-east-2/dify-riino</code><br/>crd-sa 推送 / runner-sa 拉取</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-note">
+    <div><b>EKS：</b> <code>dify-riino-eks-cluster</code> · K8s 1.28+ · test=m7g.xlarge×1–2 · prod=m7g.2xlarge×6–10 (arm64)</div>
+    <div><b>IRSA：</b> api→S3；plugin-crd→S3+ECR push；plugin-runner→ECR pull</div>
+    <div><b>HPA：</b> api/worker/web/sandbox（prod 默认开）· workerBeat 强制禁用</div>
+    <div><b>部署流程：</b> <code>terraform apply</code> → <code>scripts/3_post_tf_apply.sh</code> → <code>scripts/4_generate_dify_helm.sh</code> → <code>helm upgrade -f values.yaml dify/dify -n dify</code></div>
+    <div><b>术语：</b> <code>innerApi</code>=Dify 服务间共享密钥路径 · <code>additionalWorkers</code>=Celery 专用队列额外 worker · <code>IRSA</code>=IAM Roles for Service Accounts</div>
+  </div>
+</div>
+
+<script>
+(function () {
+  // [from, to, kind, strong?]   kind: http | celery | data | build
+  // 只保留实际数据流向：ingress 业务路径、服务间业务调用、数据存储访问、镜像拉推。
+  // 已省略：组件内部互连（插件控制平面内部）、pod 生命周期控制（connector→builder/runner）、
+  // 浏览器中介的冗余边（web→api、ent-frontend→enterprise）、Caddy 插件控制面（gateway→redis）。
+  const CONNECTIONS = [
+    // ① → ②  ingress 主流量
+    ['card-alb', 'card-gateway', 'http', true],
+
+    // ② → ③/④  host+path 路由（业务请求）
+    ['card-gateway', 'card-web', 'http'],
+    ['card-gateway', 'card-ent-frontend', 'http'],
+    ['card-gateway', 'card-api', 'http', true],
+    ['card-gateway', 'card-enterprise', 'http'],
+    ['card-gateway', 'card-audit', 'http'],
+    ['card-gateway', 'card-plugin-manager', 'http'],
+    ['card-gateway', 'card-plugin-daemon', 'http'],
+
+    // ④ 内部业务调用
+    ['card-api', 'card-sandbox', 'http'],
+    ['card-api', 'card-ssrf', 'http'],
+    ['card-api', 'card-enterprise', 'http'],
+    ['card-api', 'card-plugin-daemon', 'http'],
+
+    // ④ → ⑤  异步任务派发
+    ['card-api', 'card-worker', 'celery'],
+
+    // ⑤ 插件执行
+    ['card-plugin-daemon', 'card-runner', 'http'],
+    ['card-worker', 'card-unstructured', 'http'],
+
+    // ⑤ → ⑥  数据存储访问
+    ['card-api', 'card-rds', 'data', true],
+    ['card-api', 'card-redis', 'data', true],
+    ['card-api', 'card-opensearch', 'data'],
+    ['card-api', 'card-s3', 'data'],
+    ['card-worker', 'card-rds', 'data'],
+    ['card-worker', 'card-redis', 'data', true],
+    ['card-worker', 'card-opensearch', 'data'],
+    ['card-worker', 'card-s3', 'data'],
+    ['card-trigger', 'card-redis', 'celery'],
+    ['card-beat', 'card-redis', 'celery'],
+    ['card-enterprise', 'card-rds', 'data'],
+    ['card-audit', 'card-rds', 'data'],
+    ['card-plugin-daemon', 'card-rds', 'data'],
+    ['card-plugin-daemon', 'card-s3', 'data'],
+
+    // 插件镜像数据
+    ['card-builder', 'card-s3', 'build'],
+    ['card-builder', 'card-ecr', 'build', true],
+    ['card-runner', 'card-ecr', 'build'],
+  ];
+
+  function draw() {
+    const svg = document.querySelector('.connections');
+    const board = document.querySelector('.board');
+    if (!svg || !board) return;
+
+    [...svg.querySelectorAll('path.conn')].forEach(p => p.remove());
+
+    const bRect = board.getBoundingClientRect();
+    const width  = board.scrollWidth  || bRect.width;
+    const height = board.scrollHeight || bRect.height;
+    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    svg.setAttribute('width', width);
+    svg.setAttribute('height', height);
+
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+
+    for (const [fromId, toId, kind, strong] of CONNECTIONS) {
+      const a = document.getElementById(fromId);
+      const b = document.getElementById(toId);
+      if (!a || !b) continue;
+
+      const ar = a.getBoundingClientRect();
+      const br = b.getBoundingClientRect();
+      const x1 = ar.left + ar.width / 2 - bRect.left;
+      const y1 = ar.bottom              - bRect.top + 6;
+      const x2 = br.left + br.width / 2 - bRect.left;
+      const y2 = br.top                 - bRect.top - 10;
+
+      const dy = Math.max(30, (y2 - y1) * 0.55);
+      const d = `M ${x1} ${y1} C ${x1} ${y1 + dy}, ${x2} ${y2 - dy}, ${x2} ${y2}`;
+
+      const p = document.createElementNS(SVG_NS, 'path');
+      p.setAttribute('d', d);
+      p.setAttribute('class', `conn k-${kind}${strong ? ' strong' : ''}`);
+      p.setAttribute('marker-start', `url(#dot-${kind})`);
+      p.setAttribute('marker-end', `url(#arr-${kind})`);
+      svg.appendChild(p);
+    }
+  }
+
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    requestAnimationFrame(draw);
+  } else {
+    window.addEventListener('DOMContentLoaded', () => requestAnimationFrame(draw));
+  }
+  window.addEventListener('load',   draw);
+  window.addEventListener('resize', draw);
+
+  if (window.ResizeObserver) {
+    new ResizeObserver(() => draw()).observe(document.querySelector('.board'));
+  }
+})();
+</script>
+</body>
+</html>

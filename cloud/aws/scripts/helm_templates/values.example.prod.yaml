@@ -1,13 +1,13 @@
 ###################################
 # {{local_domain}} is the domain name for dify access. Default is .local
 # {{secret_key}} is the secret key for dify access.  Use openssl rand -base64 42 to generate a random string
+# {{password_encryption_key}} is the AES-256 key for enterprise password policy. Use openssl rand -base64 32 to generate
 # {{region}} is the region for aws access. E.g. us-east-2
 # {{account_id}} is the account id for aws access. E.g. 1234567890
 # {{deployment_id}} is the unique deployment identifier. E.g. dev1, prod1, staging
 # {{cert_uuid}} is the uuid for aws access. E.g. 12345678-1234-1234-1234-123456789012
 
 
-# {{s3_endpoint}} is the endpoint for s3 access. E.g. https://s3.us-east-2.amazonaws.com
 # {{s3_bucket_name}} is the bucket name for s3 access. E.g. dify-test-storage-t5ap12345
 
 # {{rds_address}} is the address for rds access. Default is dify-eks-cluster-aurora-postgres.cluster-12345678.us-east-2.rds.amazonaws.com
@@ -23,6 +23,20 @@
 # {{opensearch_address}} is the address for opensearch access. E.g. vpc-dify-eks-cluster-opensearch-12345678.us-east-2.es.amazonaws.com
 # {{opensearch_user}} is the user for opensearch access. E.g. admin
 # {{opensearch_password}} is the password for opensearch access. E.g. DifyOpenSearchPass123!
+###################################
+# Adapted for Dify Helm chart 3.9.x.
+###################################
+# Profile: prod (HPA on — set replicas = 1 for HPA-managed components)
+# - Assumes enable_hpa = true in terraform.tfvars. HPA manages replicas for
+#   api / worker / web / sandbox per the defaults in tf/variables.tf (hpa_config).
+# - HPA-managed Deployments set replicas: 1 here; HPA scales them out using
+#   the resources.requests blocks below (required for utilization metrics —
+#   do NOT remove resources.requests while HPA is on).
+# - Non-HPA components (enterprise, enterpriseFrontend, enterpriseAudit,
+#   ssrfProxy, unstructured, plugin_*, gateway) keep static replicas = 3.
+# - workerBeat is a singleton (replicas forced to 1; HPA disabled by design).
+# - If enable_hpa = false, scale api/worker/web/sandbox manually by editing
+#   replicas below.
 ###################################
 global:
   appSecretKey: '{{secret_key}}'
@@ -50,40 +64,47 @@ ingress:
   }
 
 api:
-  replicas: 3
+  replicas: 1  # HPA-managed (see hpa_config.api in tf/variables.tf)
   serverWorkerAmount: 1
   serviceAccountName: "dify-api-sa"
   innerApi:
     apiKey: "{{secret_key}}"
   resources:
     limits:
-      cpu: 3000m
+      cpu: 1000m
+      memory: 2048Mi
+    requests:  # required by HPA for CPU/memory utilization metrics
+      cpu: 500m
       memory: 1024Mi
-    requests:
-      cpu: 1500m
-      memory: 512Mi
 worker:
-  replicas: 3
+  replicas: 1  # HPA-managed (see hpa_config.worker in tf/variables.tf)
   celeryWorkerAmount: 1
   serviceAccountName: "dify-api-sa"
   resources:
     limits:
-      cpu: 2000m
-      memory: 1024Mi
-    requests:
       cpu: 1000m
-      memory: 512Mi
-triggerWorker:
-  replicas: 3
-  celeryWorkerAmount: 1
-  serviceAccountName: "dify-api-sa"
-  resources:
-    limits:
-      cpu: 2000m
+      memory: 2048Mi
+    requests:  # required by HPA for CPU/memory utilization metrics
+      cpu: 500m
       memory: 1024Mi
-    requests:
-      cpu: 1000m
-      memory: 512Mi
+# Override chart default additionalWorkers list to disable the built-in
+# trigger-worker. The main `worker` above already consumes every Celery queue
+# (including the trigger queues: schedule_poller, schedule_executor,
+# triggered_workflow_dispatcher, trigger_refresh_executor), and the chart's
+# trigger-worker has no IRSA service-account binding so it crash-loops on
+# any S3 call (NoCredentialsError). Setting the list explicitly replaces
+# the chart default — to split queues onto dedicated pods, append entries:
+#   - name: workflow-worker
+#     enabled: true
+#     replicas: 1
+#     celeryQueues: "workflow,workflow_storage,workflow_based_app_execution"
+#     celeryWorkerAmount: 2
+#
+# Note: HPA is not currently wired up for additionalWorkers — any pods you
+# declare here scale via the static `replicas:` value above.
+additionalWorkers:
+  - name: trigger-worker
+    enabled: false
 workerBeat:
   resources:
     limits:
@@ -93,28 +114,32 @@ workerBeat:
       cpu: 500m
       memory: 512Mi
 web:
-  replicas: 3
+  replicas: 1  # HPA-managed (see hpa_config.web in tf/variables.tf)
   resources:
     limits:
       cpu: 1000m
       memory: 1024Mi
-    requests:
+    requests:  # required by HPA for CPU/memory utilization metrics
       cpu: 500m
       memory: 512Mi
 sandbox:
-  replicas: 3
+  replicas: 1  # HPA-managed (see hpa_config.sandbox in tf/variables.tf)
   apiKey: "{{secret_key}}"
   resources:
     limits:
       cpu: 1000m
       memory: 2048Mi
-    requests:
+    requests:  # required by HPA for CPU/memory utilization metrics
       cpu: 500m
       memory: 1024Mi
 enterprise:
   replicas: 3
   appSecretKey: "{{secret_key}}"
   adminAPIsSecretKeySalt: "{{secret_key}}"
+  # 32-byte AES-256 key for password policy encryption (new in 3.9.x).
+  # Chart ships a public default; MUST override in prod. Generated by
+  # scripts/4_generate_dify_helm.sh via `openssl rand -base64 32`.
+  passwordEncryptionKey: "{{password_encryption_key}}"
   innerApi:
     apiKey: "{{secret_key}}"
   resources:
@@ -214,15 +239,14 @@ gateway:
     requests:
       cpu: 500m
       memory: 1024Mi
-minio:
-  replicas: 1
+enterpriseCollector:
   resources:
     limits:
       cpu: 1000m
-      memory: 2048Mi
+      memory: 1024Mi
     requests:
       cpu: 500m
-      memory: 1024Mi
+      memory: 512Mi
 
 ###################################
 # Persistence Configration
@@ -230,7 +254,10 @@ minio:
 persistence:
   type: "s3"
   s3:
-    endpoint: "{{s3_endpoint}}"
+    endpoint: ""  # Leave empty for native AWS S3; the SDK resolves endpoint from region.
+                  # Setting a URL here propagates to kaniko's S3_ENDPOINT env and breaks STS
+                  # (kaniko treats it as a global AWS endpoint override -> AssumeRoleWithWebIdentity
+                  # hits the S3 endpoint and returns HTTP 405). Only set for MinIO / non-AWS S3.
     accessKey: ""
     secretKey: ""
     region: "{{region}}"
@@ -240,33 +267,25 @@ persistence:
     useAwsS3: true
 
 ###################################
-# External postgres
+# External Database (Dify chart 3.9.x schema)
 ###################################
-externalPostgres:
+externalDatabase:
   enabled: true
-  address: "{{rds_address}}"
+  engine: "postgres"
+  host: "{{rds_address}}"
   port: 5432
-  credentials:
-    dify:
-      database: "{{rds_main_database_name}}"
-      username: "postgres"
-      password: "{{rds_password}}"
-      sslmode: "require"
-    plugin_daemon:
-      database: "{{rds_plugin_daemon_database_name}}"
-      username: "postgres"
-      password: "{{rds_password}}"
-      sslmode: "require"
-    enterprise:
-      database: "{{rds_enterprise_database_name}}"
-      username: "postgres"
-      password: "{{rds_password}}"
-      sslmode: "require"
-    audit:
-      database: "{{rds_audit_database_name}}"
-      username: "postgres"
-      password: "{{rds_password}}"
-      sslmode: "require"
+  user: "postgres"
+  password: "{{rds_password}}"
+  databases:
+    dify: "{{rds_main_database_name}}"
+    plugin_daemon: "{{rds_plugin_daemon_database_name}}"
+    enterprise: "{{rds_enterprise_database_name}}"
+    audit: "{{rds_audit_database_name}}"
+  dialectOptions:
+    postgres:
+      sslMode: "require"
+      uriScheme: "postgresql"
+      extras: ""
 
 ###################################
 # External Redis

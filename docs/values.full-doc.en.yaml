@@ -1,0 +1,1351 @@
+# Annotated reference values for Dify Enterprise Edition helm chart v3.9.1.
+# Generated from the upstream chart's values.yaml on 2026-04-23 with additional
+# inline English explanations. Use this as a documentation reference only —
+# pick the fields you actually need and copy them into your own values file.
+#
+# Source: langgenius/dify-helm, chart version 3.9.1.
+
+global:
+  # Application edition. Use "SELF_HOSTED" for on-prem / self-managed deployments,
+  # or "CLOUD" for managed SaaS deployments operated by Dify.
+  edition: "SELF_HOSTED"
+  # Secret key used to sign the session cookie and encrypt sensitive DB fields.
+  # Must be a strong random string — generate via `openssl rand -base64 42`.
+  appSecretKey: "#REPLACE_ME#"
+  # Secret key for internal (service-to-service) API calls.
+  # Generate a strong key via `openssl rand -base64 42`.
+  innerApiKey: "UY8Qri0LOKpDO9eckiY8dvOgtJynMGaO6XikQ6J1Tjdsafon0OeBYrXW"
+  # Whether the cluster is exposed over HTTPS. Affects URLs emitted by the API/web
+  # services. true => https:// and port 443; false => http:// and externalPort below.
+  useTLS: false
+  # External port advertised to browsers. Only takes effect when useTLS=false or
+  # when you expose on a non-standard port (e.g. 8443 for HTTPS, 8080 for HTTP).
+  externalPort: 80
+  # Backend domain for the console API (authorization callback target).
+  # Leave empty to reuse the current browser origin. Example: console.dify.ai
+  consoleApiDomain: ""
+  # Frontend domain for the console web app. Used for URL composition and CORS.
+  # Leave empty to reuse the current origin. Example: console.dify.ai
+  consoleWebDomain: ""
+  # Service API domain (what the app displays as "Service API Base URL").
+  # Leave empty to reuse the current origin. Example: api.dify.ai
+  serviceApiDomain: ""
+  # WebApp API backend domain (what the front-end WebApp calls).
+  # Leave empty to reuse the current origin. Example: app.dify.ai
+  appApiDomain: ""
+  # WebApp frontend domain (rendered to end-users as the WebApp base URL).
+  # Leave empty to reuse the current origin. Example: app.dify.ai
+  appWebDomain: ""
+  # Domain used for signed file preview / download URLs. Image preview URLs are
+  # signed and expire after 5 minutes to prevent forgery / hotlinking.
+  filesDomain: ""
+  # Enterprise-edition service domain (enterprise front-end talks to this).
+  enterpriseDomain: ""
+  # Trigger service domain (used by api/worker for trigger functionality).
+  # If empty, trigger features may not work. Example: trigger.dify.ai
+  triggerDomain: ""
+  # Only set if the plugin_daemon runs in a different cluster. Otherwise the
+  # in-cluster service DNS is used automatically.
+  pluginDaemonDomain: ""
+  # If true, DB migrations run as an init container before the app starts.
+  # The main container only starts after migrations succeed.
+  dbMigrationEnabled: true
+  rag:
+    # RAG ETL pipeline type: "dify" (built-in) or "Unstructured" (external API).
+    etlType: "dify"
+    # Where the keyword index is stored: "object_storage" (MinIO/S3) or "database".
+    keywordDataSourceType: "object_storage"
+    # Hard cap on top-k in RAG retrieval (UI slider max).
+    topKMaxValue: 10
+    # Max tokens per chunk when indexing long documents (RAG chunking).
+    indexingMaxSegmentationTokensLength: 4000
+  integrations:
+    notion:
+      # "public" uses Notion's OAuth app; "internal" uses an internal integration token.
+      integrationType: "internal"
+      # Notion OAuth app client id (public integration).
+      clientId: ""
+      # Notion OAuth app client secret (public integration).
+      clientSecret: ""
+      # Internal integration secret token (internal integration).
+      internalSecret: ""
+  marketplace:
+    # Enable the plugin/app marketplace.
+    enabled: true
+    # Marketplace frontend URL surfaced to users.
+    url: "https://marketplace.dify.ai"
+    # Marketplace API endpoint queried by the backend.
+    apiUrl: "https://marketplace.dify.ai"
+  # Cross-cluster plugin synchronization (Plugin DR).
+  pluginDr:
+    enabled: false
+  log:
+    # Log output format, "text" or "json".
+    outputFormat: "json"
+  # OpenTelemetry tracing/metrics export. Requires enterpriseCollector.enabled=true.
+  otel:
+    enabled: true
+    # Trace sampling rate, 0.0–1.0. Empty string means use the SDK default.
+    samplingRate: "0.2"
+    # Batch span processor schedule delay (ms).
+    batchExportScheduleDelay: "5000"
+    # Batch processor max queue size.
+    maxQueueSize: "2048"
+    # Batch processor max export batch size.
+    maxExportBatchSize: "512"
+    # Periodic metric export interval (ms).
+    metricExportInterval: "60000"
+    # Per-batch trace export timeout (ms).
+    batchExportTimeout: "30000"
+    # Per-batch metric export timeout (ms).
+    metricExportTimeout: "30000"
+
+    sender:
+      otlp:
+        # Extra OTLP headers, formatted as "key=value,key2=value2".
+        headers: ""
+
+      # service.name attribute reported to the OTel collector.
+      serviceName: "dify-api-otel"
+
+      # Include prompt/response content in spans. Turn on only if you trust the
+      # collection pipeline — contents may include user data.
+      includeContent: false
+  # Mount a private / self-signed CA bundle into all Dify pods.
+  customCA:
+    enabled: false
+    # Name of an existing k8s Secret that holds the CA certificate.
+    # NOTE: Changing this Secret requires pod restart — the combined CA bundle is
+    # built once by an initContainer at pod startup.
+    existingSecret: ""
+    # Key inside the Secret whose value is the CA cert in PEM form.
+    key: ca.crt
+    # Where the merged CA bundle is mounted inside every container.
+    mountPath: /etc/dify/custom-ca
+    # Init container image used to merge the system CA store with your CA.
+    # Must contain /etc/ssl/certs/ca-certificates.crt (Debian/Ubuntu) or
+    # /etc/ssl/cert.pem (Alpine). For air-gapped clusters, mirror this into your
+    # private registry and point here. Examples:
+    #   - alpine:3.20 (default, needs Docker Hub access)
+    #   - your-registry.company.com/alpine:3.20
+    #   - your-registry.company.com/ubuntu:22.04
+    initImage: alpine:3.20
+  # Extra labels applied to every Dify workload Pod template. Ignored when empty.
+  podLabels: {}
+
+ingress:
+  # Enable the Kubernetes Ingress resource for external access. Leave false if
+  # you terminate traffic via the bundled Caddy gateway + Service/LB directly.
+  enabled: false
+  # Route by IP instead of DNS hostname. Non-enterprise only — EE requires DNS.
+  useIpAsHost: false
+  # IngressClass name (nginx, traefik, alb, ...). Must match a controller installed
+  # in the cluster; leave "" to use the cluster default IngressClass.
+  className: ""
+  # Annotations applied to the Ingress — controller-specific tuning lives here.
+  # Example: kubernetes.io/tls-acme: "true"
+  annotations: {}
+  # TLS block as accepted by Kubernetes Ingress (list of {hosts, secretName}).
+  tls: []
+
+###################################
+# api — Dify core backend (Flask/Python)
+###################################
+api:
+  enabled: true
+  image:
+    # EE image; mirror into your registry for air-gapped environments.
+    repository: langgenius/dify-ee-api
+    # If empty, chart falls back to Chart.yaml's appVersion.
+    tag: "3.9.1"
+  # Static replica count. Set to 1 when HPA manages scaling (HPA overrides this).
+  replicas: 1
+  # Container resources. Provide requests when using HPA on utilization metrics.
+  resources: {}
+  # ServiceAccount to attach (set for IRSA / Workload Identity).
+  serviceAccountName: ""
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  # Longer probe windows account for DB migration time on first boot.
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 5001
+      scheme: HTTP
+    initialDelaySeconds: 120
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 3
+    failureThreshold: 30
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 5001
+      scheme: HTTP
+    initialDelaySeconds: 300  # 5 minutes — allows long migrations
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 3
+    failureThreshold: 3
+  # Extra environment variables appended to the api container.
+  # Example:
+  # extraEnv:
+  #   - name: MY_FLAG
+  #     value: "1"
+  extraEnv:
+  # Deployment mode: "PRODUCTION" or "DEVELOPMENT".
+  deployEnv: "PRODUCTION"
+  # CORS allow-origin for the Web App API.
+  webApiCorsAllowOrigins: "*"
+  # CORS allow-origin for the console API.
+  consoleCorsAllowOrigins: "*"
+  # gunicorn worker process count per api Pod (CPU-bound; scale via replicas/HPA).
+  serverWorkerAmount: 1
+  # Update-check endpoint (set to "" or a local mirror for offline clusters).
+  checkUpdateUrl: "https://updates.dify.ai"
+  innerApi:
+    # Expose the internal admin API (consumed by enterprise / plugin services).
+    enabled: true
+  oauth:
+    redirectPath: "/console/api/oauth/authorize"
+    github:
+      clientId: ""
+      clientSecret: ""
+    google:
+      clientId: ""
+      clientSecret: ""
+  db:
+    # SQLAlchemy pool size per api Pod (multiply by replicas for total connections).
+    poolSize: 250
+    poolRecycle: 3600
+  limits:
+    # Per-upload file size cap (MB).
+    uploadFileSize: 15
+    # Max files per batch upload.
+    uploadFileBatchCount: 5
+    # Per-upload image size cap (MB).
+    uploadImageFileSize: 5
+  sentry:
+    enabled: false
+    dsn: ""
+    tracesSampleRate: 1.0
+    profilesSampleRate: 1.0
+  # Ordering hints for built-in tools (pinned ids, include/exclude globs).
+  positionTool:
+    pins: ""
+    includes: ""
+    excludes: ""
+  # Ordering hints for model providers.
+  positionProvider:
+    pins: ""
+    includes: ""
+    excludes: ""
+
+###################################
+# worker — Celery workers (all queues by default)
+###################################
+worker:
+  enabled: true
+  image:
+    # Same image as api (worker is api-image with a different entrypoint).
+    repository: langgenius/dify-ee-api
+    tag: "3.9.1"
+  replicas: 1
+  resources: {}
+  serviceAccountName: ""
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  readinessProbe: {}
+  livenessProbe: {}
+  extraEnv:
+  # Example:
+  # extraEnv:
+  #   - name: MY_FLAG
+  #     value: "1"
+  # Concurrency per Celery worker process.
+  celeryWorkerAmount: 1
+  db:
+    poolSize: 250
+    poolRecycle: 3600
+  sentry:
+    enabled: false
+    dsn: ""
+    tracesSampleRate: 1.0
+    profilesSampleRate: 1.0
+
+###################################
+# additionalWorkers — split monolithic worker into queue-specialized pools
+# Leave disabled unless you need to scale specific queues independently.
+# When enabling these, typically set worker.enabled=false to avoid duplication.
+###################################
+additionalWorkers:
+  # Dataset & RAG pipeline processing.
+  - name: dataset-worker
+    enabled: false
+    replicas: 1
+    celeryQueues: "dataset,priority_dataset,pipeline,priority_pipeline"
+    celeryWorkerAmount: 4
+    resources: {}
+    nodeSelector: {}
+    affinity: {}
+    tolerations: []
+    extraEnv: []
+
+  # Workflow execution.
+  - name: workflow-worker
+    enabled: false
+    replicas: 1
+    celeryQueues: "workflow,workflow_storage,workflow_based_app_execution"
+    celeryWorkerAmount: 2
+    resources: {}
+    nodeSelector: {}
+    affinity: {}
+    tolerations: []
+    extraEnv: []
+
+  # Lightweight background tasks (mail, tracing, retention, telemetry, ...).
+  - name: general-worker
+    enabled: false
+    replicas: 1
+    celeryQueues: "mail,ops_trace,app_deletion,conversation,api_token,plugin,retention,enterprise_telemetry"
+    celeryWorkerAmount: 1
+    resources: {}
+    nodeSelector: {}
+    affinity: {}
+    tolerations: []
+    extraEnv: []
+
+  # Trigger worker — enabled by default (schedule & trigger dispatching queues).
+  - name: trigger-worker
+    enabled: true
+    replicas: 1
+    celeryQueues: "schedule_poller,schedule_executor,triggered_workflow_dispatcher,trigger_refresh_executor"
+    celeryWorkerAmount: 1
+    resources: {}
+    nodeSelector: {}
+    affinity: {}
+    tolerations: []
+    extraEnv: []
+
+###################################
+# workerBeat — Celery Beat scheduler (singleton; do not scale beyond 1)
+###################################
+workerBeat:
+  enabled: true
+  image:
+    repository: langgenius/dify-ee-api
+    tag: "3.9.1"
+  resources: {}
+  serviceAccountName: ""
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  readinessProbe: {}
+  livenessProbe: {}
+  extraEnv:
+  # Example:
+  # extraEnv:
+  #   - name: MY_FLAG
+  #     value: "1"
+  db:
+    poolSize: 30
+    poolRecycle: 3600
+  # Periodically prune old workflow execution logs.
+  enableWorkflowLogCleanup: false
+
+###################################
+# web — Next.js front-end (console + WebApp)
+###################################
+web:
+  enabled: true
+  image:
+    repository: langgenius/dify-ee-web
+    tag: "3.9.1"
+  # Optional logo/favicon overrides baked into the image at runtime via an
+  # initContainer (busybox). Provide base64-encoded assets below.
+  logoConfig:
+    enabled: false
+    image:
+      repository: busybox
+      tag: "1.36.1"
+    # Base64-encoded favicon.ico.
+    faviconIcoBase64: ""
+    # Base64-encoded logo (PNG) shown on the site header.
+    logoSitePngBase64: ""
+  replicas: 1
+  resources: {}
+  serviceAccountName: ""
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  readinessProbe:
+    initialDelaySeconds: 3
+    failureThreshold: 3
+    periodSeconds: 10
+    successThreshold: 1
+    tcpSocket:
+      port: 3000
+    timeoutSeconds: 1
+  livenessProbe:
+    failureThreshold: 3
+    periodSeconds: 10
+    successThreshold: 1
+    tcpSocket:
+      port: 3000
+    timeoutSeconds: 1
+  extraEnv:
+  # Example:
+  # extraEnv:
+  #   - name: MY_FLAG
+  #     value: "1"
+  sentry:
+    enabled: false
+    dsn: ""
+    tracesSampleRate: 1.0
+    profilesSampleRate: 1.0
+
+###################################
+# sandbox — sandboxed code execution (Python/Node)
+###################################
+sandbox:
+  enabled: true
+  image:
+    repository: langgenius/dify-ee-sandbox
+    tag: "3.9.1"
+  replicas: 1
+  resources: {}
+  serviceAccountName: ""
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  # Sandbox starts slowly (pulling base deps) — allow many probe failures.
+  readinessProbe:
+    failureThreshold: 60
+    initialDelaySeconds: 3
+    periodSeconds: 3
+    successThreshold: 1
+    tcpSocket:
+      port: 8194
+    timeoutSeconds: 3
+  livenessProbe:
+    failureThreshold: 3
+    periodSeconds: 3
+    successThreshold: 1
+    tcpSocket:
+      port: 8194
+    timeoutSeconds: 1
+  extraEnv:
+  # Example:
+  # extraEnv:
+  #   - name: MY_FLAG
+  #     value: "1"
+  # Number of concurrent sandbox workers (Python processes).
+  maxWorkers: 4
+  # Max requests one worker handles before respawn.
+  maxRequests: 50
+  # Per-code-run wall timeout (seconds).
+  workerTimeout: 15
+  # Extra pip packages available inside the sandbox.
+  pythonRequirements: |
+    # The requirements.txt file content
+    # For example:
+    # fastapi==0.104.1
+    # pydantic==2.5.1
+
+###################################
+# enterprise — EE control plane (workspace sync, licensing, SSO)
+###################################
+enterprise:
+  enabled: true
+  image:
+    repository: langgenius/dify-ee-enterprise
+    tag: "3.9.1"
+  replicas: 1
+  resources: {}
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  readinessProbe:
+    failureThreshold: 3
+    httpGet:
+      path: /v1/healthz
+      port: 8082
+      scheme: HTTP
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 3
+  livenessProbe:
+    failureThreshold: 3
+    httpGet:
+      path: /v1/healthz
+      port: 8082
+      scheme: HTTP
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 3
+  extraEnv:
+  # Example:
+  # extraEnv:
+  #   - name: MY_FLAG
+  #     value: "1"
+  # Must match api.appSecretKey (or be another strong random key).
+  appSecretKey: "#REPLACE_ME#"
+  # Salt used for admin-API signed tokens.
+  adminAPIsSecretKeySalt: "#REPLACE_ME#"
+  innerApi:
+    enabled: true
+  serviceAccountName: "dify-enterprise"
+  # "online" fetches from licenseServer; "offline" uses a locally installed key.
+  licenseMode: "online"
+  licenseServer: "https://licenses.dify.ai/server"
+  # When your IdP uses a self-signed / private-CA TLS cert, set these to true
+  # (less secure) or install the CA via global.customCA (preferred).
+  consoleSSOSkipCertVerify: false
+  webSSOSkipCertVerify: false
+  dashboardSSOSkipCertVerify: false
+  serverTimeout: "60s"
+  grpcServerTimeout: "60s"
+  # Cron for periodic workspace membership / role sync against the IdP.
+  workspaceSyncCron: "*/5 * * * *"
+  workspaceSyncTimeout: "30s"
+  # Base64-encoded 32-byte AES-256 key encrypting password-policy-related data.
+  # Generate via `openssl rand -base64 32`.
+  passwordEncryptionKey: "xHBzZKP288fiIUdCkYJW5Px/16kCqkJucXue6x/97eo="
+  # gRPC client timeout when calling plugin_manager.
+  pluginManagerClientTimeout: "60s"
+
+###################################
+# enterpriseCollector — OTel Collector for tracing/metrics
+###################################
+enterpriseCollector:
+  enabled: true
+  image:
+    repository: langgenius/dify-ee-collector
+    tag: "3.9.1"
+  replicas: 1
+  resources: {}
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  extraEnv:
+  # Example:
+  # extraEnv:
+  #   - name: MY_FLAG
+  #     value: "1"
+  serviceAccountName: ""
+  # readinessProbe / livenessProbe are commented upstream — enable if you need
+  # explicit TCP probes on the collector port 8080.
+  # readinessProbe:
+  #   tcpSocket: { port: 8080 }
+  #   initialDelaySeconds: 30
+  # livenessProbe:
+  #   tcpSocket: { port: 8080 }
+  #   initialDelaySeconds: 20
+  # Free-form YAML appended to the otel-collector config. Use this to add
+  # exporters/pipelines. See https://opentelemetry.io/docs/collector/configuration/
+  extraConfig: |
+    # yaml config for otel collector
+    # you can use this to fully customize the otel collector
+    # see https://opentelemetry.io/docs/collector/configuration/
+  # Collector sending-queue sizing. Defaults assume 512 MiB memory limit and
+  # batch size 512 — scale in proportion when you raise those.
+  sendingQueues:
+    trace:
+      size: 64
+    metric:
+      size: 256
+
+###################################
+# enterpriseAudit — EE audit log service
+###################################
+enterpriseAudit:
+  enabled: true
+  image:
+    repository: langgenius/dify-ee-audit
+    tag: "3.9.1"
+  replicas: 1
+  resources: {}
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  readinessProbe:
+    failureThreshold: 3
+    httpGet:
+      path: /v1/healthz
+      port: 8083
+      scheme: HTTP
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 3
+  livenessProbe:
+    failureThreshold: 3
+    httpGet:
+      path: /v1/healthz
+      port: 8083
+      scheme: HTTP
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 3
+  extraEnv:
+  # Example:
+  # extraEnv:
+  #   - name: MY_FLAG
+  #     value: "1"
+  # Background "solidify" job — moves old audit rows to cold-storage table.
+  scheduler:
+    solidifyCheckCron: "0 0 */1 * *" # minute hour day-of-month month day-of-week
+    solidifyDelayDays: 90
+    timeout: "600s"
+  # Internal message-queue tuning.
+  mq:
+    checkInterval: "5s"
+    syncThreshold: 200
+    maxWait: "10s"
+  serverTimeout: "60s"
+  grpcServerTimeout: "60s"
+  downloadTimeout: "60s"
+  serviceAccountName: ""
+
+###################################
+# enterpriseFrontend — EE admin UI (Next.js)
+###################################
+enterpriseFrontend:
+  enabled: true
+  image:
+    repository: langgenius/dify-ee-enterprise-frontend
+    tag: "3.9.1"
+  replicas: 1
+  resources: {}
+  serviceAccountName: ""
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  readinessProbe:
+    initialDelaySeconds: 3
+    failureThreshold: 3
+    periodSeconds: 10
+    successThreshold: 1
+    tcpSocket:
+      port: 3000
+    timeoutSeconds: 1
+  livenessProbe:
+    failureThreshold: 3
+    periodSeconds: 10
+    successThreshold: 1
+    tcpSocket:
+      port: 3000
+    timeoutSeconds: 1
+  extraEnv:
+  # Example:
+  # extraEnv:
+  #   - name: MY_FLAG
+  #     value: "1"
+
+###################################
+# ssrfProxy — Squid forward proxy protecting against SSRF to private ranges
+###################################
+ssrfProxy:
+  enabled: true
+  image:
+    repository: ubuntu/squid
+    tag: "6.13-25.04_beta"
+  replicas: 1
+  resources: {}
+  serviceAccountName: ""
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  readinessProbe: {}
+  livenessProbe: {}
+  # Custom sandbox host for the reverse proxy block (leave empty to use default).
+  # Example: "my-release-dify-sandbox-svc.my-namespace.svc.cluster.local"
+  sandboxHost: ""
+  extraEnv:
+  # Example:
+  # extraEnv:
+  #   - name: MY_FLAG
+  #     value: "1"
+  # Full squid.conf. Do NOT remove the private_dst / SSL_ports rules unless you
+  # know what you're doing — they are the actual SSRF protection.
+  squidConf: |
+    acl localnet src 0.0.0.1-0.255.255.255	# RFC 1122 "this" network (LAN)
+    acl localnet src 10.0.0.0/8		# RFC 1918 local private network (LAN)
+    acl localnet src 100.64.0.0/10		# RFC 6598 shared address space (CGN)
+    acl localnet src 169.254.0.0/16 	# RFC 3927 link-local (directly plugged) machines
+    acl localnet src 172.16.0.0/12		# RFC 1918 local private network (LAN)
+    acl localnet src 192.168.0.0/16		# RFC 1918 local private network (LAN)
+    acl localnet src fc00::/7       	# RFC 4193 local private network range
+    acl localnet src fe80::/10      	# RFC 4291 link-local (directly plugged) machines
+    acl private_dst dst 0.0.0.0/8		# "This" network
+    acl private_dst dst 10.0.0.0/8		# Private network (Class A)
+    acl private_dst dst 100.64.0.0/10	# Carrier-grade NAT
+    acl private_dst dst 127.0.0.0/8		# Loopback
+    acl private_dst dst 169.254.0.0/16	# Link-local
+    acl private_dst dst 172.16.0.0/12	# Private network (Class B)
+    acl private_dst dst 192.168.0.0/16	# Private network (Class C)
+    acl private_dst dst fc00::/7		# IPv6 private network
+    acl private_dst dst fe80::/10		# IPv6 link-local
+    acl private_dst dst ::1/128		# IPv6 loopback
+    acl SSL_ports port 443
+    acl Safe_ports port 80		# http
+    acl Safe_ports port 21		# ftp
+    acl Safe_ports port 443		# https
+    acl Safe_ports port 70		# gopher
+    acl Safe_ports port 210		# wais
+    acl Safe_ports port 1025-65535	# unregistered ports
+    acl Safe_ports port 280		# http-mgmt
+    acl Safe_ports port 488		# gss-http
+    acl Safe_ports port 591		# filemaker
+    acl Safe_ports port 777		# multiling http
+    acl CONNECT method CONNECT
+    http_access deny !Safe_ports
+    http_access deny CONNECT !SSL_ports
+    http_access allow localhost manager
+    http_access deny manager
+    http_access allow localhost
+    http_access deny private_dst		# Block access to private/internal IPs (SSRF protection)
+    include /etc/squid/conf.d/*.conf
+    http_access deny all
+
+    ################################## Proxy Server ################################
+    http_port 3128
+    coredump_dir /var/spool/squid
+    refresh_pattern ^ftp:		1440	20%	10080
+    refresh_pattern ^gopher:	1440	0%	1440
+    refresh_pattern -i (/cgi-bin/|\?) 0	0%	0
+    refresh_pattern \/(Packages|Sources)(|\.bz2|\.gz|\.xz)$ 0 0% 0 refresh-ims
+    refresh_pattern \/Release(|\.gpg)$ 0 0% 0 refresh-ims
+    refresh_pattern \/InRelease$ 0 0% 0 refresh-ims
+    refresh_pattern \/(Translation-.*)(|\.bz2|\.gz|\.xz)$ 0 0% 0 refresh-ims
+    refresh_pattern .		0	20%	4320
+
+    # upstream proxy, set to your own upstream proxy IP to avoid SSRF attacks
+    # ====== using the upstream proxy to access the internet without any authentication ======
+    # cache_peer 127.0.0.1 parent 3128 0 no-query default
+    # never_direct allow all
+    # ====== using the upstream proxy to access the internet with authentication ======
+    # cache_peer 172.1.1.1 parent 3128 0 no-query default login=your-username:your-password
+    # never_direct allow all
+
+    ################################## Reverse Proxy To Sandbox ################################
+    http_port 8194 accel vhost
+    cache_peer {{ .Values.ssrfProxy.sandboxHost | default (printf "%s-sandbox-svc" (include "dify.fullname" .)) }} parent 8194 0 no-query originserver
+    acl src_all src all
+    http_access allow src_all
+
+###################################
+# unstructured — document parsing (PDF/office docs -> structured text)
+###################################
+unstructured:
+  enabled: true
+  image:
+    repository: downloads.unstructured.io/unstructured-io/unstructured-api
+    tag: "0.0.70"
+  replicas: 1
+  resources: {}
+  serviceAccountName: ""
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  readinessProbe: {}
+  livenessProbe: {}
+  # Optional API key when using unstructured.io's managed .ppt analyze service.
+  # unstructured_api_key: {}
+  extraEnv:
+  # Example:
+  # extraEnv:
+  #   - name: MY_FLAG
+  #     value: "1"
+
+###################################
+# plugin_daemon — runtime host for serverless Dify plugins
+###################################
+plugin_daemon:
+  enabled: true
+  replicas: 1
+  image:
+    repository: langgenius/dify-ee-plugin-daemon-serverless
+    tag: 3.9.1
+  resources: {}
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  # Hard timeout for a plugin launch (seconds).
+  maxLaunchSeconds: 3600
+  # When true, plugin signatures must validate before loading.
+  forceVerifyingSignature: false
+  # How remote plugin installs reach the daemon. NodePort or LoadBalancer.
+  serviceType: "NodePort"
+  # Host advertised to remote plugins for install callbacks. Use an LB IP or a
+  # reachable node IP.
+  remoteInstallHost: "127.0.0.1"
+  remoteInstallPort: "5003"
+  # Max time a plugin-invoked tool call may run (seconds).
+  pluginExecuteTimeout: "360"
+  # Expose the admin gRPC API (required by plugin_controller/plugin_connector).
+  adminApiEnabled: true
+  serviceAccountName: ""
+
+###################################
+# plugin_controller — reconciles Plugin CRDs
+###################################
+plugin_controller:
+  enabled: true
+  replicas: 1
+  image:
+    repository: langgenius/dify-ee-plugin-crd
+    tag: "3.9.1"
+  resources: {}
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  # External Kubernetes kubeconfig — used when the controller manages a cluster
+  # different from the one it runs in. See examples/generate-kubeconfig-secret.sh.
+  kube:
+    config:
+      secret:
+        name: ""
+        key: config
+
+###################################
+# plugin_connector — drives plugin builds & runners (kaniko, ECR, GitHub Actions)
+###################################
+plugin_connector:
+  replicas: 1
+  image:
+    repository: langgenius/dify-ee-plugin-connector
+    tag: "3.9.1"
+  resources: {}
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  securityContext: {}
+  labels: {}
+  # Max time to wait for a plugin build to finish (seconds).
+  maxWaitSeconds: 3600
+  # ServiceAccount for the connector control pod and its worker pods.
+  customServiceAccount: ""
+  # ServiceAccount used by the runner pods (IRSA / WI for image pull).
+  runnerServiceAccount: ""
+  # Set true for HTTP (insecure) image registries — otherwise HTTPS.
+  insecureImageRepo: false
+  # Name of a pre-created docker-registry Secret (used as imagePullSecrets).
+  imageRepoSecret: "image-repo-secret"
+  # Registry prefix where plugin images are pushed / pulled, e.g.
+  # "123456789.dkr.ecr.us-east-1.amazonaws.com/dify-<deploymentId>".
+  imageRepoPrefix: "docker.io/your-image-repo-prefix"
+  # "docker" for generic OCI registries, "ecr" for AWS ECR auth flow.
+  imageRepoType: docker
+  # AWS region for ECR when imageRepoType=ecr.
+  ecrRegion: "us-east-1"
+  # Images used as sidecars/launchers in build + runner pipelines.
+  gatewayImage: "nginx:1.29.4-alpine"
+  shaderImage: "gcr.io/kaniko-project/executor:latest"
+  busyBoxImage: "busybox:latest"
+  awsCliImage: "amazon/aws-cli:latest"
+  # Builder implementation: "kaniko" runs inside the cluster; GitHub builder
+  # delegates to GitHub Actions (see .github below).
+  builderName: "kaniko"
+  # Resource caps for plugin runner Pods.
+  pluginResourceLimits:
+    cpu: 1000m
+    memory: 3000Mi
+    ephemeralStorage: 5Gi
+  pluginResourceRequests:
+    cpu: 100m
+    memory: 50Mi
+    ephemeralStorage: 5Gi
+  # When true, enforces stricter container isolation for plugin runners.
+  secure: false
+  # GitHub-Actions-based builder configuration (alternative to in-cluster kaniko).
+  github:
+    # "auto" picks pat|app based on the fields below.
+    authMethod: "auto"
+    # PAT with repo + workflow scopes. Prefer the GitHub App flow for scale.
+    accessToken: ""
+    repoName: "your-repo-name"
+    actionFileName: "build.yml"
+    branch: "main"
+    imagePrefix: "docker.io/your-image-repo-prefix"
+    orgName: "your-org-name"
+    shaderImage: "gcr.io/kaniko-project/executor:latest"
+    # GitHub App install (preferred for rate limits). Create the app once,
+    # install it on the target repo, store the PEM in a k8s Secret.
+    app:
+      enabled: false
+      appId: "0"
+      installationId: "0"
+      privateKeySecretKey: "app.pem"
+  # ConfigMap content that tells the connector which base images to use per
+  # Python version. Mirror into your registry for air-gapped clusters.
+  generatorConf: |
+    generator:
+      repo: langgenius
+      python:
+        pipMirror: ""
+        preCompile: true
+        versions:
+          python3.14:
+            langgenius: docker.io/langgenius/plugin-build-base-python:3.14-secure
+          python3.13:
+            langgenius: docker.io/langgenius/plugin-build-base-python:3.13-secure
+          python3.12:
+            langgenius: docker.io/langgenius/plugin-build-base-python:3.12-secure
+  # Tuning for the plugin DR (disaster recovery) reconcile loop.
+  pluginDr:
+    # How often the incremental reconcile loop ticks.
+    reconcileInterval: "5s"
+    # Max rows fetched per reconcile / GC pagination batch.
+    reconcileBatchSize: 100
+    # Interval between full (non-incremental) reconcile sweeps.
+    fullReconcileInterval: "1800s"
+    # Interval between garbage-collection runs.
+    gcInterval: "300s"
+    # Consecutive apply failures before an instance moves to dead_letter.
+    deadLetterThreshold: 5
+    # How long soft-deleted rows are kept before hard deletion.
+    softDeleteRetention: "86400s"
+  # External Kubernetes kubeconfig — see examples/generate-kubeconfig-secret.sh.
+  kube:
+    config:
+      secret:
+        name: ""
+        key: config
+
+###################################
+# gateway — Caddy reverse proxy exposing all Dify services on one host+path
+###################################
+gateway:
+  enabled: true
+  replicas: 1
+  image:
+    repository: langgenius/dify-ee-gateway
+    tag: "3.9.1"
+  resources: {}
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+
+  # Caddy reverse-proxy transport timeouts.
+  transport:
+    dialTimeout: "30s"
+    keepalive: "30s"
+    keepaliveInterval: "30s"
+
+  # Extra origins allowed in CORS. Dify's own domains are always permitted.
+  allowOrigins:
+    - http://localhost:3000
+    - http://localhost:3001
+    - http://localhost:5001
+    - http://localhost:3002
+  log:
+    # Fields stripped from Caddy access logs (e.g. sensitive headers).
+    filterFields:
+      - request>headers>X-Csrf-Token delete
+
+###################################
+# plugin_manager — manages running plugin instances & resource metrics
+###################################
+plugin_manager:
+  enabled: true
+  replicas: 1
+  image:
+    repository: langgenius/dify-ee-plugin-manager
+    tag: "3.9.1"
+  resources: {}
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  serverTimeout: "60s"
+  grpcServerTimeout: "60s"
+  # If "false", plugin instance management controls are hidden in the UI.
+  k8sEnabled: "true"
+
+  # Source of per-plugin resource metrics (CPU, memory, network I/O). One of:
+  # - "disabled": no metrics collected
+  # - "cadvisor": scraped from kubelet/cAdvisor. Requires ClusterRole on
+  #   nodes & nodes/proxy. Stored in a local ephemeral TSDB.
+  # - "prometheus" (recommended): read from an external Prometheus —
+  #   configure externalPrometheus below.
+  #
+  # Required metrics (see https://kubernetes.io/docs/reference/instrumentation/metrics/):
+  #   container_cpu_usage_seconds_total, container_memory_working_set_bytes,
+  #   container_network_receive_bytes_total, container_network_transmit_bytes_total
+  metric:
+    source: "disabled"
+    # Only used when source=cadvisor.
+    scrape:
+      retainPeriod: 604800s
+      tsdbBlockSizeLimitBytes: 536870912
+      scrapeTimeout: 10s
+      scrapeInterval: 20s
+      tmpDir: /tmp
+  extraEnv: []
+  # External Kubernetes kubeconfig — see examples/generate-kubeconfig-secret.sh.
+  kube:
+    config:
+      secret:
+        name: ""
+        key: config
+
+
+
+###################################
+# Persistence — object storage for uploaded files, RAG caches, plugin artifacts
+# Supported type: local, s3, azure-blob, aliyun-oss, google-storage,
+# tencent-cos, volcengine-tos, huawei-obs
+###################################
+persistence:
+  type: "local"
+  # local — PVC-backed storage (requires ReadWriteMany for multi-replica api/worker).
+  local:
+    mountPath: "/app/api/storage"
+    annotations:
+      # Keep PVC around after `helm uninstall`.
+      helm.sh/resource-policy: keep
+    persistentVolumeClaim:
+      # Reuse an existing PVC by name (skip creating one).
+      existingClaim: ""
+      # Host path used only if your PV provisioner is hostPath-based.
+      hostPath: "/data/dify"
+      ## Dify App Data Persistent Volume Storage Class
+      ## If defined, storageClassName: <storageClass>
+      ## If set to "-", storageClassName: "", which disables dynamic provisioning
+      ## If undefined (the default) or set to null, no storageClassName spec is
+      ##   set, choosing the default provisioner.
+      ## ReadWriteMany access mode required for `api` and `worker`.
+      storageClass:
+      accessModes: ReadWriteMany
+      size: 5Gi
+      subPath: ""
+  # s3 — AWS S3 or S3-compatible (MinIO, Cloudflare R2, DigitalOcean Spaces, ...).
+  s3:
+    # Leave empty "" for native AWS S3 so the SDK resolves endpoint from region.
+    # Set only for S3-compatible backends (R2, MinIO, ...).
+    endpoint: "https://xxx.r2.cloudflarestorage.com"
+    accessKey: "#REPLACE_ME#"
+    secretKey: "#REPLACE_ME#"
+    region: "us-east-1"
+    bucketName: "your-bucket-name"
+    # "path" or "virtual-hosted" URL style. Leave "" for SDK default.
+    addressType: ""
+    # When true, the SDK uses the pod's IAM identity (IRSA on EKS). Ignore
+    # accessKey/secretKey in that case.
+    useAwsManagedIam: false
+    # Set false for MinIO / other S3-compatible (disables AWS-specific behaviors).
+    useAwsS3: true
+  # azureBlob — Azure Blob storage.
+  azureBlob:
+    accountName: ""
+    accountKey: ""
+    containerName: ""
+    accountUrl: ""
+    # Optional Azure EndpointSuffix, e.g. "core.windows.net" or "core.chinacloudapi.cn".
+    endpointSuffix: ""
+    # Use Azure AD Workload Identity instead of accountKey. When enabled,
+    # ensure the ServiceAccounts for api/worker/audit/plugin_daemon are the
+    # AKS-provided SAs AND add label `azure.workload.identity/use: "true"`
+    # to their Pods.
+    useManagedIdentity: false
+  # aliyunOss — Alibaba Cloud OSS.
+  aliyunOss:
+    endpoint: "your-endpoint"
+    bucketName: "your-bucket-name"
+    accessKey: "#REPLACE_ME#"
+    secretKey: "#REPLACE_ME#"
+    region: "ap-southeast-1"
+  # googleStorage — Google Cloud Storage.
+  googleStorage:
+    bucketName: "your-bucket-name"
+    # Base64-encoded service-account JSON key.
+    serviceAccountJson: ""
+  # tencentCos — Tencent Cloud COS.
+  tencentCos:
+    bucketName: "your-bucket-name"
+    region: ""
+    secretId: "#REPLACE_ME"
+    secretKey: "#REPLACE_ME"
+    scheme: "https"
+  # huaweiObs — Huawei Cloud OBS.
+  huaweiObs:
+    server: "your-server-url"
+    bucketName: "your-bucket-name"
+    accessKey: "#REPLACE_ME#"
+    secretKey: "#REPLACE_ME#"
+  # volcengineTos — ByteDance Volcano Engine TOS.
+  volcengineTos:
+    bucketName: "your-bucket-name"
+    accessKey: "#REPLACE_ME#"
+    secretKey: "#REPLACE_ME#"
+    endpoint: "tos-endpoint"
+    region: "your-region"
+
+###################################
+# Mail — transactional email (signup, password reset, notifications)
+###################################
+mail:
+  # "resend", "smtp", or "" to disable.
+  type: ""
+  # Default From address used when no specific sender is supplied.
+  defaultSender: "YOUR EMAIL FROM (eg: no-reply <no-reply@dify.ai>)"
+  # resend (https://resend.com) — simplest option for managed email.
+  resend:
+    apiKey: ""
+    apiUrl: https://api.resend.com
+  smtp:
+    server: ""
+    port: 587
+    username: ""
+    password: ""
+    useTLS: false
+
+###################################
+# External database — Postgres / MySQL / TiDB
+# The EE chart has no bundled production DB; always use an external one in prod.
+###################################
+externalDatabase:
+  enabled: false
+  # One of: postgres | mysql | tidb.
+  engine: "postgres"
+  host: "localhost"
+  # Default ports: postgres=5432, mysql=3306, tidb=4000.
+  # Update port if you switch engines.
+  port: 5432
+  user: "postgres"
+  password: "#REPLACE_ME#"
+  timezone: "UTC"
+  # Logical database names for each Dify service. These must already exist.
+  databases:
+    dify: "dify"
+    plugin_daemon: "dify_plugin_daemon"
+    enterprise: "enterprise"
+    audit: "audit"
+  # Per-database credentials (optional).
+  # When set (non-empty), overrides the global user/password above for that
+  # logical database. Leave empty to inherit from global user/password.
+  databaseCredentials:
+    dify:
+      user: ""
+      password: ""
+    enterprise:
+      user: ""
+      password: ""
+    audit:
+      user: ""
+      password: ""
+    plugin_daemon:
+      user: ""
+      password: ""
+  # Per-engine dialect options.
+  dialectOptions:
+    postgres:
+      sslMode: "require"
+      uriScheme: "postgresql"
+      # extras: "options=-c search_path=your-schema -c your-other-option=xxx"
+      extras: ""
+    mysql:
+      # MySQL / TiDB params, e.g. charset=utf8mb4&parseTime=true&loc=UTC.
+      params: "charset=utf8mb4&parseTime=true&loc=UTC"
+      tls: false
+
+###################################
+# Internal PostgreSQL (bundled sub-chart — dev/demo only, not for production)
+###################################
+postgresql:
+  enabled: false
+  name: postgres
+  image:
+    repository: langgenius/postgresql
+    registry: docker.io
+  global:
+    storageClass: ""
+    postgresql:
+      auth:
+        postgresPassword: "#REPLACE_ME#"
+        database: "dify"
+  #        username: ""
+  #        password: ""
+  primary:
+    initdb:
+      scripts:
+        my_init_script.sh: |
+          #!/bin/bash
+          set -e
+          echo "Creating database..."
+          PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -U postgres << 'EOF'
+          SELECT 'CREATE DATABASE enterprise' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'enterprise')\gexec
+          SELECT 'CREATE DATABASE audit' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'audit')\gexec
+          EOF
+
+###################################
+# External Redis (used for Celery broker/result + app cache)
+###################################
+externalRedis:
+  enabled: true
+  useSSL: false
+
+  host: "redis.example"
+  port: 6379
+  username: ""
+  password: "#REPLACE_ME#"
+  db: 0
+
+  # Sentinel-managed Redis (mutually exclusive with `cluster`).
+  sentinel:
+    enabled: false
+    nodes: "" # Comma-separated list of Redis Sentinel nodes (host:port)
+    serviceName: "" # Name of the Redis Sentinel service to monitor
+    username: ""
+    password: "#REPLACE_ME#"
+    socketTimeout: 0.1 # Seconds
+
+  # Redis Cluster mode (mutually exclusive with `sentinel`).
+  cluster:
+    enabled: false
+    nodes: "#REPLACE_ME#" # Comma-separated list of Redis Cluster nodes (host:port)
+    password: "#REPLACE_ME#"
+
+###################################
+# Internal Redis (bundled sub-chart — dev/demo only)
+###################################
+redis:
+  enabled: false
+  image:
+    repository: langgenius/redis
+    registry: docker.io
+    tag: 6.2.16-debian-12-r3
+  global:
+    redis:
+      password: "#REPLACE_ME#"
+
+###################################
+# vectorDB — vector store for RAG embeddings
+# Pick ONE externalType; only the matching sub-block is honored.
+# Supported: weaviate, qdrant, milvus, relyt (pgvectors), pgvecto-rs, tencent,
+#            opensearch, elasticsearch, analyticdb, lindorm
+# Reference: https://github.com/langgenius/dify/blob/main/api/core/rag/datasource/vdb/vector_type.py
+###################################
+vectorDB:
+  useExternal: true
+  externalType: "qdrant"
+  externalWeaviate:
+    endpoint: "http://weaviate:8080"
+    apiKey: "#REPLACE_ME#"
+  # External Qdrant.
+  externalQdrant:
+    endpoint: "http://your-qdrant-cluster-url.qdrant.tech/"
+    apiKey: "#REPLACE_ME#"
+  # External Milvus.
+  externalMilvus:
+    # e.g. "http://localhost:19530" or "https://milvus-instance.example.com:19530".
+    uri: "http://127.0.0.1:19530"
+    token: ""
+    user: ""
+    password: ""
+    database: "default"
+  externalRelyt:
+    host: "your-relyt.domain"
+    port: 5431
+    user: "postgres"
+    password: "#REPLACE_ME#"
+    database: "pgvectors"
+  externalPgVectoRS:
+    host: "your-pgvectors.domain"
+    port: 5432
+    user: "postgres"
+    password: "#REPLACE_ME#"
+    database: "pgvectors"
+  externalTencentVectorDB:
+    host: "your-tencent-vector-db.domain"
+    apiKey: "#REPLACE_ME#"
+    timeout: 30
+    username: "tencent"
+    password: "#REPLACE_ME#"
+    shard: 1
+    replicas: 2
+    database: "tencent"
+  externalOpenSearch:
+    host: "your-opensearch.domain"
+    port: 9200
+    user: ""
+    password: "#REPLACE_ME#"
+    useTLS: false
+  externalElasticsearch:
+    host: "127.0.0.1"
+    port: 9200
+    username: "elastic"
+    password: "#REPLACE_ME#"
+  externalAnalyticDB:
+    keyID: "#REPLACE_ME#"
+    keySecret: "#REPLACE_ME#"
+    regionID: "#REPLACE_ME#"
+    instanceID: "#REPLACE_ME#"
+    account: "#REPLACE_ME#"
+    password: "#REPLACE_ME#"
+    host: "#REPLACE_ME#"
+    port: 5432
+    namespace: ""
+    namespacePassword: ""
+    minConnection: 1
+    maxConnection: 5
+  externalLindorm:
+    url: "http://localhost:30070"
+    username: "admin"
+    password: "admin"
+    indexType: "hnsw"
+    distanceType: "l2"
+    usingUgc: true
+    queryTimeout: 2.0
+
+# Internal Qdrant (bundled sub-chart — dev/demo only).
+qdrant:
+  enabled: false
+  replicaCount: 3
+  image:
+    repository: langgenius/qdrant
+    pullPolicy: IfNotPresent
+    tag: "v1.7.3"
+  apiKey: "dify123456"
+  persistence:
+    accessModes: ["ReadWriteOnce"]
+    size: 10Gi
+  resources: {}
+    # limits:
+    #   cpu: 100m
+    #   memory: 128Mi
+    # requests:
+    #   cpu: 100m
+    #   memory: 128Mi
+
+# Internal Weaviate (bundled sub-chart — disabled by default).
+weaviate:
+  enabled: false
+
+# Global imagePullSecrets applied to every workload Pod.
+imagePullSecrets: []
+
+###################################
+# External Prometheus — plugin resource metrics source
+# If disabled, plugin_manager falls back to cAdvisor (needs cluster roles) or
+# "disabled" mode — see plugin_manager.metric above.
+###################################
+externalPrometheus:
+  enabled: false
+  endpoint: "http://prometheus:9090"
+  timeout: 10s
+  username: ""
+  password: ""
+  # Skip TLS verification on the Prometheus endpoint.
+  insecure: true
+
+###################################
+# External Kubernetes — target a different cluster for plugin CRD / pods
+###################################
+externalKubernetes:
+  enabled: false
