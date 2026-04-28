@@ -13,7 +13,7 @@ global:
   appSecretKey: "#REPLACE_ME#"
   # 内部（サービス間）API 呼び出し用の秘密鍵。
   # `openssl rand -base64 42` で強力なキーを生成。
-  innerApiKey: "UY8Qri0LOKpDO9eckiY8dvOgtJynMGaO6XikQ6J1Tjdsafon0OeBYrXW"
+  innerApiKey: "#REPLACE_ME#"
   # クラスタを HTTPS で公開するかどうか。API / web サービスが返す URL に影響します。
   # true => https:// + ポート 443、false => http:// + 下記 externalPort。
   useTLS: false

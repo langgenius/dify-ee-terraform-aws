@@ -13,7 +13,7 @@ global:
   appSecretKey: "#REPLACE_ME#"
   # 内部（服务间）API 调用使用的密钥。
   # 使用 `openssl rand -base64 42` 生成高强度密钥。
-  innerApiKey: "UY8Qri0LOKpDO9eckiY8dvOgtJynMGaO6XikQ6J1Tjdsafon0OeBYrXW"
+  innerApiKey: "#REPLACE_ME#"
   # 集群是否通过 HTTPS 对外暴露。会影响 API / web 服务返回的 URL。
   # true => https:// 且端口 443；false => http:// 且使用下面的 externalPort。
   useTLS: false
