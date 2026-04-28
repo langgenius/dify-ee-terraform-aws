@@ -3,6 +3,7 @@ locals {
 }
 
 # S3 Bucket for Dify storage
+# tfsec:ignore:aws-s3-enable-bucket-logging -- access logging is opt-in via central log bucket; enable in env-specific overrides if required
 resource "aws_s3_bucket" "dify_storage" {
   bucket = "dify-${var.deployment_id}-storage"
 
@@ -21,6 +22,7 @@ resource "aws_s3_bucket_versioning" "dify_storage" {
   }
 }
 
+# tfsec:ignore:aws-s3-encryption-customer-key -- using S3-managed keys (SSE-S3); CMK migration tracked separately
 resource "aws_s3_bucket_server_side_encryption_configuration" "dify_storage" {
   bucket = aws_s3_bucket.dify_storage.id
 

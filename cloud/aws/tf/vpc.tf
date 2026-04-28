@@ -21,6 +21,7 @@ locals {
 }
 
 # VPC (only created if use_existing_vpc is false)
+# tfsec:ignore:aws-ec2-require-vpc-flow-logs-for-all-vpcs -- VPC Flow Logs not provisioned here; enable via central logging stack if required
 resource "aws_vpc" "main" {
   count                = local.create_vpc ? 1 : 0
   cidr_block           = var.vpc_cidr
@@ -45,6 +46,7 @@ resource "aws_internet_gateway" "main" {
 }
 
 # Public Subnets
+# tfsec:ignore:aws-ec2-no-public-ip-subnet -- public subnets host the internet-facing ALB and NAT gateway by design
 resource "aws_subnet" "public" {
   count                   = local.create_vpc ? length(local.availability_zones) : 0
   vpc_id                  = aws_vpc.main[0].id

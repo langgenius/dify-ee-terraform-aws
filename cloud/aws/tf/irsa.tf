@@ -262,6 +262,7 @@ resource "aws_iam_role" "s3_access" {
   })
 }
 
+# tfsec:ignore:aws-iam-no-policy-wildcards -- wildcard scoped to dify_storage bucket prefix only; required for object-level read/write/list
 resource "aws_iam_policy" "s3_access" {
   name = "dify-${var.deployment_id}-s3-access-policy"
 

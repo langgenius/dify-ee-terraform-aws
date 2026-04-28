@@ -1,0 +1,15 @@
+# Helm chart reference values: high-entropy placeholder strings (passwordEncryptionKey,
+# rootPassword) flagged as generic-api-key. These files are documentation examples
+# carrying chart defaults, not real secrets.
+90e0a52f89a06035936dd9a077ff6d0913a07634:docs/values.full-doc.cn.yaml:generic-api-key:16
+90e0a52f89a06035936dd9a077ff6d0913a07634:docs/values.full-doc.cn.yaml:generic-api-key:514
+90e0a52f89a06035936dd9a077ff6d0913a07634:docs/values.full-doc.jp.yaml:generic-api-key:16
+90e0a52f89a06035936dd9a077ff6d0913a07634:docs/values.full-doc.jp.yaml:generic-api-key:516
+90e0a52f89a06035936dd9a077ff6d0913a07634:docs/values.full-doc.en.yaml:generic-api-key:17
+90e0a52f89a06035936dd9a077ff6d0913a07634:docs/values.full-doc.en.yaml:generic-api-key:517
+14ef5c214a4df9eff18a90abfdaf9c707e13d983:cloud/aws/values.full-doc.jp.yaml:generic-api-key:441
+14ef5c214a4df9eff18a90abfdaf9c707e13d983:cloud/aws/values.full-doc.jp.yaml:generic-api-key:758
+14ef5c214a4df9eff18a90abfdaf9c707e13d983:cloud/aws/values.full-doc.cn.yaml:generic-api-key:441
+14ef5c214a4df9eff18a90abfdaf9c707e13d983:cloud/aws/values.full-doc.cn.yaml:generic-api-key:759
+14ef5c214a4df9eff18a90abfdaf9c707e13d983:cloud/aws/values.full-doc.en.yaml:generic-api-key:441
+14ef5c214a4df9eff18a90abfdaf9c707e13d983:cloud/aws/values.full-doc.en.yaml:generic-api-key:759

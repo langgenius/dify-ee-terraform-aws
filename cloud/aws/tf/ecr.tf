@@ -1,4 +1,6 @@
 # ECR Repository for main Dify application
+# tfsec:ignore:aws-ecr-enforce-immutable-repository -- application image flow re-uses tags during dev/test cycles
+# tfsec:ignore:aws-ecr-repository-customer-key -- using AWS-managed encryption (AES256); CMK migration tracked separately
 resource "aws_ecr_repository" "dify" {
   name                 = "dify-${var.deployment_id}"
   image_tag_mutability = "MUTABLE"
@@ -36,6 +38,8 @@ resource "aws_ecr_lifecycle_policy" "dify" {
 }
 
 # ECR Repository for Dify EE plugins
+# tfsec:ignore:aws-ecr-enforce-immutable-repository -- plugin builder pushes mutable tags during plugin install/update flow
+# tfsec:ignore:aws-ecr-repository-customer-key -- using AWS-managed encryption (AES256); CMK migration tracked separately
 resource "aws_ecr_repository" "dify_ee_plugin" {
   name                 = "dify-${var.deployment_id}-ee-plugin-repo"
   image_tag_mutability = "MUTABLE"

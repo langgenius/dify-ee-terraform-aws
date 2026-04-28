@@ -10,6 +10,7 @@ locals {
 
 # RDS Subnet Group (can be used for Aurora)
 # RDS credential storage (Secrets Manager)
+# tfsec:ignore:aws-ssm-secret-use-customer-key -- using AWS-managed KMS key for Secrets Manager; CMK rollout tracked separately
 resource "aws_secretsmanager_secret" "rds_credentials" {
   name                    = "dify-${var.deployment_id}-rds-credentials"
   description             = "RDS Aurora cluster credentials for Dify"
@@ -42,16 +43,20 @@ resource "aws_db_subnet_group" "main" {
 # RDS Security Group (can be used for Aurora)
 resource "aws_security_group" "rds" {
   name_prefix = "dify-${var.deployment_id}-rds-"
+  description = "Security group for dify-${var.deployment_id} Aurora PostgreSQL cluster"
   vpc_id      = local.vpc_id
 
   ingress {
+    description     = "PostgreSQL traffic from EKS worker nodes"
     from_port       = 5432
     to_port         = 5432
     protocol        = "tcp"
     security_groups = [aws_security_group.eks_nodes.id]
   }
 
+  # tfsec:ignore:aws-ec2-no-public-egress-sgr -- RDS managed network needs egress for AWS service calls; default 0.0.0.0/0 retained for parity with provider defaults (lifecycle ignore_changes set below)
   egress {
+    description = "Allow all outbound traffic"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
@@ -72,6 +77,7 @@ resource "aws_security_group" "rds" {
 }
 
 # Aurora Serverless v2 Cluster
+# tfsec:ignore:aws-rds-encrypt-cluster-storage-data -- using default AWS-managed KMS key; CMK migration tracked separately
 resource "aws_rds_cluster" "main" {
   cluster_identifier     = "dify-${var.deployment_id}-aurora-postgres"
   engine                 = "aurora-postgresql"
@@ -109,6 +115,7 @@ resource "aws_rds_cluster" "main" {
 
 # Aurora Serverless v2 instance
 # Note: Serverless v2 still requires creating instances, but instance type must be "db.serverless"
+# tfsec:ignore:aws-rds-enable-performance-insights-encryption -- Performance Insights uses default AWS-managed key; CMK migration tracked separately
 resource "aws_rds_cluster_instance" "main" {
   count              = var.environment == "test" ? 1 : 2 # 1 for test environment, 2 for production environment
   identifier         = "dify-${var.deployment_id}-aurora-instance-${count.index + 1}"

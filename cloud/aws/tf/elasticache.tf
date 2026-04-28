@@ -35,16 +35,20 @@ resource "aws_elasticache_subnet_group" "main" {
 # ElastiCache Security Group
 resource "aws_security_group" "redis" {
   name_prefix = "dify-${var.deployment_id}-redis"
+  description = "Security group for dify-${var.deployment_id} ElastiCache Redis"
   vpc_id      = local.vpc_id
 
   ingress {
+    description     = "Redis traffic from EKS worker nodes"
     from_port       = 6379
     to_port         = 6379
     protocol        = "tcp"
     security_groups = [aws_security_group.eks_nodes.id]
   }
 
+  # tfsec:ignore:aws-ec2-no-public-egress-sgr -- ElastiCache nodes need outbound for AWS API calls (snapshot to S3, KMS, CW logs) routed via NAT
   egress {
+    description = "Allow all outbound traffic"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
@@ -84,6 +88,12 @@ resource "aws_elasticache_replication_group" "main" {
 
   subnet_group_name  = aws_elasticache_subnet_group.main.name
   security_group_ids = [aws_security_group.redis.id]
+
+  # Encryption at rest and in transit. Clients must connect via TLS (rediss://), so the
+  # generated Helm values set externalRedis.useSSL: true. Toggling these on an existing
+  # replication group forces recreation — schedule a maintenance window.
+  at_rest_encryption_enabled = true
+  transit_encryption_enabled = true
 
   # Configure high availability features based on environment
   automatic_failover_enabled = local.redis_config.automatic_failover_enabled
