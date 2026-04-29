@@ -21,6 +21,39 @@
 - Ensure security of passwords and keys
 - Regularly backup Terraform state files
 
+## 📜 许可与适用范围 | License & Scope
+
+本仓库的脚本与 Terraform 代码用于在 AWS 上配置运行 **Dify Enterprise** 所需的基础设施。基础设施代码本身基于 **Apache License 2.0** 开源（见 `LICENSE`），可自由使用、修改、分发。
+
+**但 Dify Enterprise 软件本身并非 Apache 2.0 协议授权**，其使用受单独的商业许可协议约束。请通过 Dify Enterprise 官方渠道获取许可与镜像访问权限，并自行确认你的使用方式符合该协议。本仓库仅提供基础设施编排脚本，不授予 Dify Enterprise 软件的任何许可。
+
+The scripts and Terraform code in this repository are used to provision the AWS infrastructure required to run **Dify Enterprise**. The infrastructure code itself is open-sourced under the **Apache License 2.0** (see `LICENSE`) — you are free to use, modify, and distribute it.
+
+**However, the Dify Enterprise software itself is NOT licensed under Apache 2.0.** Its use is governed by a separate commercial license. Please obtain the license and image access through official Dify Enterprise channels and ensure your usage complies with that agreement. This repository only provides infrastructure orchestration scripts; it does NOT grant any license to the Dify Enterprise software.
+
+## 🧩 部署前需要替换的变量 | Required Placeholders Before Deployment
+
+在执行 `terraform apply` 之前，请将 `cloud/aws/tf/terraform.tfvars`（从 `terraform.tfvars.example` 复制而来）中的以下占位符替换为你的真实值。完整变量清单请见 `cloud/aws/tf/terraform.tfvars.example`。
+
+Before running `terraform apply`, replace the following placeholders in `cloud/aws/tf/terraform.tfvars` (copied from `terraform.tfvars.example`) with your actual values. For the full list of available variables, see `cloud/aws/tf/terraform.tfvars.example`.
+
+| 变量 / Variable | 示例 / Example | 说明 / Description |
+|---|---|---|
+| `aws_account_id` | `"123456789012"` | 你的 AWS 账户 ID / Your AWS account ID |
+| `aws_region` | `"us-east-1"` / `"cn-northwest-1"` | 部署区域；中国区使用 `cn-north-1` 或 `cn-northwest-1` / Target region; for China use `cn-north-1` or `cn-northwest-1` |
+| `deployment_id` | `"dev1"` | 本次部署的唯一标识，3–15 字符，仅小写字母、数字、连字符 / Unique deployment identifier (3–15 chars, lowercase alphanumeric + hyphens) |
+| `environment` | `"test"` 或 `"prod"` | 影响节点规模与 Redis 高可用配置 / Drives node sizing and Redis HA |
+| `eks_arch` | `"amd64"` 或 `"arm64"` | 节点 CPU 架构 / Node CPU architecture |
+| `vpc_cidr` | `"10.0.0.0/16"` | 仅在 `use_existing_vpc = false` 时使用 / Only used when `use_existing_vpc = false` |
+| `vpc_id` + `existing_vpc_subnets` | `"vpc-xxxxxxxx"` + 子网 ID 列表 | 仅在 `use_existing_vpc = true` 时使用，需要至少 2 个不同 AZ 的私有子网 / Only used when `use_existing_vpc = true`; requires at least 2 private subnets in different AZs |
+| `elb_mode` | `"internet-facing"` 或 `"internal"` | 负载均衡暴露模式 / Load balancer exposure |
+| `db_master_password` | **请改为强密码 / replace with strong password** | Aurora 主密码，请勿保留示例值 / Aurora master password — do NOT keep the sample value |
+| `opensearch_master_user_password` | **请改为强密码 / replace with strong password** | OpenSearch 主用户密码，请勿保留示例值 / OpenSearch master password — do NOT keep the sample value |
+
+> 提示：所有密码类字段在示例文件中给出的都是占位字符串，请务必替换；生成的 `secret/` 目录下的派生配置会沿用这些值。
+>
+> Tip: All password fields in the example file are placeholder strings — make sure to replace them. Derived configs under `secret/` will inherit these values.
+
 ## 🔧 完整部署流程
 ## 🔧 Complete Deployment Process
 
