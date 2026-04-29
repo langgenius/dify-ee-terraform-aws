@@ -125,9 +125,15 @@ find_env_files() {
         exit 1
     fi
     
+    # Newest-first ordering. show_menu starts with selected=0, and when stdin
+    # is not a TTY (read -rsn1 returns "" immediately, treated as Enter) it
+    # auto-picks index 0. Sorting newest-first makes that default match the
+    # config the user most likely wants — in particular it stops a stale
+    # config_*.env from a prior deploy (with a different REDIS_ENDPOINT format,
+    # e.g. before transit encryption was enabled) from leaking into values.yaml.
     while IFS= read -r -d '' file; do
         env_files+=("$(basename "$file")")
-    done < <(find "$SECRET_DIR" -maxdepth 1 -name "*.env" -type f -print0 | sort -z)
+    done < <(find "$SECRET_DIR" -maxdepth 1 -name "*.env" -type f -print0 | sort -zr)
     
     if [ ${#env_files[@]} -eq 0 ]; then
         log_error "No .env files found in $SECRET_DIR"
