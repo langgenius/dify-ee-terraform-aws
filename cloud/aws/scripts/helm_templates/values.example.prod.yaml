@@ -296,7 +296,7 @@ externalRedis:
   port: 6379
   username: ""
   password: ""
-  useSSL: false
+  useSSL: true
 
 ###################################
 # External Qdrant
