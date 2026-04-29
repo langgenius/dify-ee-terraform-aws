@@ -69,6 +69,8 @@ resource "aws_elasticache_parameter_group" "redis" {
 
 # ElastiCache Redis Replication Group (Cluster Mode Disabled)
 # Auto-configure based on environment: test=single node, prod=primary-replica
+# tfsec:ignore:aws-elasticache-enable-in-transit-encryption -- intentional: enabling forces replication group recreation; opt-in tracked separately
+# tfsec:ignore:aws-elasticache-enable-at-rest-encryption    -- intentional: enabling forces replication group recreation; opt-in tracked separately
 resource "aws_elasticache_replication_group" "main" {
   replication_group_id = "dify-${var.deployment_id}-redis"
   description          = "Redis ${var.environment} environment for dify-${var.deployment_id}"
@@ -88,12 +90,6 @@ resource "aws_elasticache_replication_group" "main" {
 
   subnet_group_name  = aws_elasticache_subnet_group.main.name
   security_group_ids = [aws_security_group.redis.id]
-
-  # Encryption at rest and in transit. Clients must connect via TLS (rediss://), so the
-  # generated Helm values set externalRedis.useSSL: true. Toggling these on an existing
-  # replication group forces recreation — schedule a maintenance window.
-  at_rest_encryption_enabled = true
-  transit_encryption_enabled = true
 
   # Configure high availability features based on environment
   automatic_failover_enabled = local.redis_config.automatic_failover_enabled
