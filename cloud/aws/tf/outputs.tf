@@ -242,3 +242,9 @@ output "autoscaling_status" {
     } : null
   }
 }
+
+output "password_encryption_key" {
+  description = "AES-256 base64 key for enterprise.passwordEncryptionKey. Generated and persisted in TF state; stable across applies."
+  value       = random_bytes.password_encryption_key.base64
+  sensitive   = true
+}
