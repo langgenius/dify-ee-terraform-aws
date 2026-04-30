@@ -190,6 +190,7 @@ unstructured:
 plugin_daemon:
   replicas: 3
   apiKey: "{{secret_key}}"
+  serviceAccountName: "dify-api-sa"
   resources:
     limits:
       cpu: 1000m

@@ -118,6 +118,7 @@ unstructured:
 plugin_daemon:
   replicas: 1
   apiKey: "{{secret_key}}"
+  serviceAccountName: "dify-api-sa"
 plugin_controller:
   replicas: 1
 plugin_manager:
