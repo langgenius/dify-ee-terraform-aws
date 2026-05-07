@@ -14,7 +14,7 @@ global:
   appSecretKey: "#REPLACE_ME#"
   # Secret key for internal (service-to-service) API calls.
   # Generate a strong key via `openssl rand -base64 42`.
-  innerApiKey: "UY8Qri0LOKpDO9eckiY8dvOgtJynMGaO6XikQ6J1Tjdsafon0OeBYrXW"
+  innerApiKey: "#REPLACE_ME#"
   # Whether the cluster is exposed over HTTPS. Affects URLs emitted by the API/web
   # services. true => https:// and port 443; false => http:// and externalPort below.
   useTLS: false

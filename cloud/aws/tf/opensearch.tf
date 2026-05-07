@@ -22,9 +22,11 @@ locals {
 # OpenSearch Security Group
 resource "aws_security_group" "opensearch" {
   name_prefix = "dify-${var.deployment_id}-opensearch-"
+  description = "Security group for dify-${var.deployment_id} OpenSearch domain"
   vpc_id      = local.vpc_id
 
   ingress {
+    description     = "HTTPS to OpenSearch from EKS worker nodes"
     from_port       = 443
     to_port         = 443
     protocol        = "tcp"
@@ -32,13 +34,16 @@ resource "aws_security_group" "opensearch" {
   }
 
   ingress {
+    description     = "OpenSearch REST API from EKS worker nodes"
     from_port       = 9200
     to_port         = 9200
     protocol        = "tcp"
     security_groups = [aws_security_group.eks_nodes.id]
   }
 
+  # tfsec:ignore:aws-ec2-no-public-egress-sgr -- OpenSearch ENIs need outbound for AWS service calls (snapshots, KMS) routed via NAT
   egress {
+    description = "Allow all outbound traffic"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"

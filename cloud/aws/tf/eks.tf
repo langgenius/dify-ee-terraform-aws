@@ -83,11 +83,39 @@ resource "aws_iam_role_policy_attachment" "eks_container_registry_policy" {
   role       = aws_iam_role.eks_node_group.name
 }
 
+# KMS key for EKS secret envelope encryption
+resource "aws_kms_key" "eks_secrets" {
+  description             = "Envelope encryption key for ${local.cluster_name} Kubernetes secrets"
+  enable_key_rotation     = true
+  deletion_window_in_days = 7
+
+  tags = {
+    Name        = "${local.cluster_name}-secrets-kms"
+    Environment = var.environment
+  }
+}
+
+resource "aws_kms_alias" "eks_secrets" {
+  name          = "alias/${local.cluster_name}-secrets"
+  target_key_id = aws_kms_key.eks_secrets.key_id
+}
+
 # EKS Cluster
+# tfsec:ignore:aws-eks-no-public-cluster-access -- public endpoint is gated on elb_mode == "internet-facing"
+# tfsec:ignore:aws-eks-no-public-cluster-access-to-cidr -- public_access_cidrs tightening tracked separately; default allow is intentional in internet-facing mode
 resource "aws_eks_cluster" "main" {
   name     = local.cluster_name
   role_arn = aws_iam_role.eks_cluster.arn
   version  = var.cluster_version
+
+  enabled_cluster_log_types = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
+
+  encryption_config {
+    provider {
+      key_arn = aws_kms_key.eks_secrets.arn
+    }
+    resources = ["secrets"]
+  }
 
   vpc_config {
     subnet_ids = local.cluster_subnets
@@ -112,16 +140,19 @@ resource "aws_eks_cluster" "main" {
 # EKS Nodes Security Group
 resource "aws_security_group" "eks_nodes" {
   name_prefix = "${local.cluster_name}-nodes-"
+  description = "Security group for ${local.cluster_name} worker nodes"
   vpc_id      = local.vpc_id
 
   ingress {
-    from_port = 0
-    to_port   = 65535
-    protocol  = "tcp"
-    self      = true
+    description = "Node-to-node communication on all ephemeral TCP ports"
+    from_port   = 0
+    to_port     = 65535
+    protocol    = "tcp"
+    self        = true
   }
 
   ingress {
+    description     = "Control plane to node kubelet/extension API ports"
     from_port       = 1025
     to_port         = 65535
     protocol        = "tcp"
@@ -129,13 +160,16 @@ resource "aws_security_group" "eks_nodes" {
   }
 
   ingress {
+    description     = "Control plane to node webhook/HTTPS"
     from_port       = 443
     to_port         = 443
     protocol        = "tcp"
     security_groups = [aws_eks_cluster.main.vpc_config[0].cluster_security_group_id]
   }
 
+  # tfsec:ignore:aws-ec2-no-public-egress-sgr -- nodes need outbound access to pull images, reach AWS APIs and external dependencies via NAT
   egress {
+    description = "Allow all outbound traffic (NAT-routed for private subnets)"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
@@ -157,6 +191,13 @@ resource "aws_launch_template" "eks_nodes" {
     aws_security_group.eks_nodes.id,
     aws_eks_cluster.main.vpc_config[0].cluster_security_group_id
   ]
+
+  # Enforce IMDSv2 on worker nodes; hop limit 2 lets pods reach IMDS through one extra network hop
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 2
+  }
 
   # EBS volume configuration
   block_device_mappings {

@@ -1,0 +1,33 @@
+# Helm chart reference docs ship sample values generated via `openssl rand
+# -base64 32/42` (innerApiKey, passwordEncryptionKey, rootPassword). HEAD
+# uses "#REPLACE_ME#" placeholders for innerApiKey; the other two remain
+# documented as sample values. These fingerprints allowlist only the
+# historical commits that introduced or last-touched these samples.
+#
+# 14ef5c2 added the docs at the old cloud/aws/ path before they were moved
+# to docs/. 90e0a52 introduced the innerApiKey samples at the docs/ path,
+# d180199 last touched them.
+
+# innerApiKey samples in docs/ (lines 16/17)
+90e0a52f89a06035936dd9a077ff6d0913a07634:docs/values.full-doc.cn.yaml:generic-api-key:16
+90e0a52f89a06035936dd9a077ff6d0913a07634:docs/values.full-doc.en.yaml:generic-api-key:17
+90e0a52f89a06035936dd9a077ff6d0913a07634:docs/values.full-doc.jp.yaml:generic-api-key:16
+d180199b0b7ce8634e84bd4d66c9621954ca814f:docs/values.full-doc.cn.yaml:generic-api-key:16
+d180199b0b7ce8634e84bd4d66c9621954ca814f:docs/values.full-doc.en.yaml:generic-api-key:17
+d180199b0b7ce8634e84bd4d66c9621954ca814f:docs/values.full-doc.jp.yaml:generic-api-key:16
+
+# passwordEncryptionKey samples in docs/ (line 514/516/517)
+90e0a52f89a06035936dd9a077ff6d0913a07634:docs/values.full-doc.cn.yaml:generic-api-key:514
+90e0a52f89a06035936dd9a077ff6d0913a07634:docs/values.full-doc.en.yaml:generic-api-key:517
+90e0a52f89a06035936dd9a077ff6d0913a07634:docs/values.full-doc.jp.yaml:generic-api-key:516
+d180199b0b7ce8634e84bd4d66c9621954ca814f:docs/values.full-doc.cn.yaml:generic-api-key:514
+d180199b0b7ce8634e84bd4d66c9621954ca814f:docs/values.full-doc.en.yaml:generic-api-key:517
+d180199b0b7ce8634e84bd4d66c9621954ca814f:docs/values.full-doc.jp.yaml:generic-api-key:516
+
+# passwordEncryptionKey + rootPassword samples in old cloud/aws/ path (14ef5c2)
+14ef5c214a4df9eff18a90abfdaf9c707e13d983:cloud/aws/values.full-doc.en.yaml:generic-api-key:441
+14ef5c214a4df9eff18a90abfdaf9c707e13d983:cloud/aws/values.full-doc.en.yaml:generic-api-key:759
+14ef5c214a4df9eff18a90abfdaf9c707e13d983:cloud/aws/values.full-doc.cn.yaml:generic-api-key:441
+14ef5c214a4df9eff18a90abfdaf9c707e13d983:cloud/aws/values.full-doc.cn.yaml:generic-api-key:759
+14ef5c214a4df9eff18a90abfdaf9c707e13d983:cloud/aws/values.full-doc.jp.yaml:generic-api-key:441
+14ef5c214a4df9eff18a90abfdaf9c707e13d983:cloud/aws/values.full-doc.jp.yaml:generic-api-key:758

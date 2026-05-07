@@ -92,7 +92,10 @@ resource "aws_iam_role" "dify_ee_ecr_pull_role" {
 
 # ──────────────── IAM Policies ────────────────
 
-# S3 policy for bucket access
+# S3 policy for bucket access. Resource scope is restricted to objects under
+# the Dify-owned storage bucket; broad object actions (Get/Put/Delete/List/
+# multipart) are required for app uploads, plugin assets, and lifecycle ops.
+# trivy:ignore:AVD-AWS-0345
 resource "aws_iam_policy" "dify_ee_s3_policy" {
   name = "dify-${var.deployment_id}-s3-policy"
 
@@ -262,6 +265,7 @@ resource "aws_iam_role" "s3_access" {
   })
 }
 
+# tfsec:ignore:aws-iam-no-policy-wildcards -- wildcard scoped to dify_storage bucket prefix only; required for object-level read/write/list
 resource "aws_iam_policy" "s3_access" {
   name = "dify-${var.deployment_id}-s3-access-policy"
 

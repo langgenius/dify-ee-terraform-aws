@@ -107,6 +107,9 @@ get_terraform_outputs() {
     DIFY_EE_S3_ROLE_ARN=$(cd "$TERRAFORM_DIR" && terraform output -raw dify_ee_s3_role_arn 2>/dev/null || echo "")
     DIFY_EE_S3_ECR_ROLE_ARN=$(cd "$TERRAFORM_DIR" && terraform output -raw dify_ee_s3_ecr_role_arn 2>/dev/null || echo "")
     DIFY_EE_ECR_PULL_ROLE_ARN=$(cd "$TERRAFORM_DIR" && terraform output -raw dify_ee_ecr_pull_role_arn 2>/dev/null || echo "")
+
+    # Application secrets (TF-generated, stable across applies)
+    PASSWORD_ENCRYPTION_KEY=$(cd "$TERRAFORM_DIR" && terraform output -raw password_encryption_key 2>/dev/null || echo "")
     
     # ServiceAccount information
     SERVICE_ACCOUNTS_INFO=$(cd "$TERRAFORM_DIR" && terraform output -json dify_ee_service_accounts_info 2>/dev/null || echo "{}")
@@ -343,6 +346,9 @@ OPENSEARCH_PASSWORD=$OPENSEARCH_PASSWORD
 DIFY_EE_S3_ROLE_ARN=$DIFY_EE_S3_ROLE_ARN
 DIFY_EE_S3_ECR_ROLE_ARN=$DIFY_EE_S3_ECR_ROLE_ARN
 DIFY_EE_ECR_PULL_ROLE_ARN=$DIFY_EE_ECR_PULL_ROLE_ARN
+
+# Application Secrets (TF-managed, stable across applies)
+PASSWORD_ENCRYPTION_KEY=$PASSWORD_ENCRYPTION_KEY
 EOF
 
     chmod 600 "$env_file"

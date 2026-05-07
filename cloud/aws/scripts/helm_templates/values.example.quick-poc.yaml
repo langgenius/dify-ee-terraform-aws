@@ -125,6 +125,7 @@ unstructured:
 plugin_daemon:
   replicas: 1
   apiKey: "{{secret_key}}"
+  serviceAccountName: "dify-api-sa"
 
 plugin_controller:
   replicas: 1
@@ -192,7 +193,7 @@ externalRedis:
   port: 6379
   username: ""
   password: ""  # ElastiCache Redis doesn't require password by default
-  useSSL: false
+  useSSL: true
 
 ###################################
 # External Vector Database Configuration

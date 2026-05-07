@@ -125,9 +125,15 @@ find_env_files() {
         exit 1
     fi
     
+    # Newest-first ordering. show_menu starts with selected=0, and when stdin
+    # is not a TTY (read -rsn1 returns "" immediately, treated as Enter) it
+    # auto-picks index 0. Sorting newest-first makes that default match the
+    # config the user most likely wants — in particular it stops a stale
+    # config_*.env from a prior deploy (with a different REDIS_ENDPOINT format,
+    # e.g. before transit encryption was enabled) from leaking into values.yaml.
     while IFS= read -r -d '' file; do
         env_files+=("$(basename "$file")")
-    done < <(find "$SECRET_DIR" -maxdepth 1 -name "*.env" -type f -print0 | sort -z)
+    done < <(find "$SECRET_DIR" -maxdepth 1 -name "*.env" -type f -print0 | sort -zr)
     
     if [ ${#env_files[@]} -eq 0 ]; then
         log_error "No .env files found in $SECRET_DIR"
@@ -216,10 +222,20 @@ replace_template() {
         APP_SECRET_KEY=$(openssl rand -base64 42)
     fi
 
-    # Generate a base64 32-byte key for enterprise.passwordEncryptionKey (3.9.x).
+    # Base64 32-byte key for enterprise.passwordEncryptionKey (3.9.x).
     # The chart ships a public default; MUST be overridden in production.
+    # Source of truth is the TF resource random_bytes.password_encryption_key,
+    # surfaced via terraform output and written to config_*.env by
+    # scripts/3_post_tf_apply.sh. The fallback below only fires if bash4 is run
+    # without sourcing that file — it produces an unstable key and should not
+    # happen in the normal `tf apply -> 3_post -> 4_generate` workflow.
     if [ -z "${PASSWORD_ENCRYPTION_KEY:-}" ]; then
         PASSWORD_ENCRYPTION_KEY=$(openssl rand -base64 32)
+        log_warning "PASSWORD_ENCRYPTION_KEY was not set in the sourced config.env."
+        log_warning "Generated a random one as a fallback. If the database already contains"
+        log_warning "encrypted password-policy data, it will be unreadable with this new key."
+        log_warning "Re-run scripts/3_post_tf_apply.sh and source the resulting config_*.env to"
+        log_warning "pick up the stable key from Terraform state."
     fi
     
     # Prepare AWS service suffix (used for ECR repo URL and ARN rendering).

@@ -21,6 +21,7 @@ locals {
 }
 
 # VPC (only created if use_existing_vpc is false)
+# tfsec:ignore:aws-ec2-require-vpc-flow-logs-for-all-vpcs -- VPC Flow Logs not provisioned here; enable via central logging stack if required
 resource "aws_vpc" "main" {
   count                = local.create_vpc ? 1 : 0
   cidr_block           = var.vpc_cidr
@@ -45,12 +46,14 @@ resource "aws_internet_gateway" "main" {
 }
 
 # Public Subnets
+# Hosts the internet-facing ALB and NAT gateway; neither relies on map_public_ip_on_launch,
+# so keep it off to avoid auto-assigning public IPs to any EC2 placed here.
 resource "aws_subnet" "public" {
   count                   = local.create_vpc ? length(local.availability_zones) : 0
   vpc_id                  = aws_vpc.main[0].id
   cidr_block              = cidrsubnet(var.vpc_cidr, 8, count.index + 1)
   availability_zone       = local.availability_zones[count.index]
-  map_public_ip_on_launch = true
+  map_public_ip_on_launch = false
 
   tags = {
     Name                     = "dify-${var.deployment_id}-public-${count.index + 1}"

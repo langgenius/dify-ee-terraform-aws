@@ -234,8 +234,10 @@ verify_redis() {
         return 1
     fi
     
-    # Get replication group ID from Redis endpoint
-    local replication_group_id=$(echo "$REDIS_ENDPOINT" | cut -d'.' -f1)
+    # Derive replication group ID from deployment_id. The Redis endpoint starts
+    # with "master." (or "configuration.") when transit encryption is enabled,
+    # so cutting on the first dot does not give the replication group id.
+    local replication_group_id="dify-${DEPLOYMENT_ID}-redis"
     
     # Check Redis status
     local redis_status=$(aws elasticache describe-replication-groups --replication-group-id "$replication_group_id" --region "$AWS_REGION" --query 'ReplicationGroups[0].Status' --output text 2>/dev/null || echo "NOT_FOUND")
