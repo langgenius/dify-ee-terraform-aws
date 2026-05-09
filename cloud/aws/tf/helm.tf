@@ -49,6 +49,12 @@ resource "helm_release" "aws_load_balancer_controller" {
     value = local.vpc_id
   }
 
+  # AWS PRM attribution tag on ALBs/NLBs/TargetGroups created by this controller.
+  set {
+    name  = "defaultTags.aws-apn-id"
+    value = "pc:116fvxnczvo6w334gp69myblb"
+  }
+
   depends_on = [
     aws_eks_cluster.main,
     aws_eks_node_group.main,
@@ -380,6 +386,12 @@ resource "helm_release" "nginx_ingress" {
   set {
     name  = "controller.service.annotations.service\\.beta\\.kubernetes\\.io/aws-load-balancer-cross-zone-load-balancing-enabled"
     value = "true"
+  }
+
+  # AWS PRM attribution tag on the NLB created by this service.
+  set {
+    name  = "controller.service.annotations.service\\.beta\\.kubernetes\\.io/aws-load-balancer-additional-resource-tags"
+    value = "aws-apn-id=pc:116fvxnczvo6w334gp69myblb"
   }
 
   depends_on = [aws_eks_cluster.main]
