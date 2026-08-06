@@ -25,7 +25,15 @@ Dify Enterprise 的插件以独立 Pod 形式运行，由 `dify-crd-controller` 
 >   name: <plugin-name>
 > ```
 >
-> Chart >= 3.10.0 时**请勿使用本 CronJob 方案** —— 改为在 `cloud/aws/tf` 中设置 `enable_plugin_hpa = true`（参见 `terraform.tfvars.example`）：Terraform 会自动发现集群中的 `DifyPlugin` 资源并创建对应 HPA，且在 plan 阶段校验 CRD 是否具备 scale 能力。注意这是 **day-2 开关**：首次部署必须保持 `false`，待 Dify Chart 装好、控制台安装插件之后再置 `true` 并重新 `terraform apply`（Chart 未安装时 `enterprise.dify.ai` API 尚未注册，发现逻辑会导致 apply 失败；且没有插件时也无可伸缩对象）。
+> Chart >= 3.10.0 时**请勿使用本 CronJob 方案** —— 改用同目录的脚本：
+>
+> ```bash
+> ./setup-plugin-hpa.sh              # 自动发现全部 DifyPlugin 资源并创建原生 HPA
+> ./setup-plugin-hpa.sh --help       # 副本范围、CPU/内存目标、按插件筛选等参数
+> ./setup-plugin-hpa.sh --uninstall  # 删除由脚本管理的全部 HPA
+> ```
+>
+> 脚本会预先校验 CRD 的 `/scale` 能力（旧 Chart 上直接报错并给出指引），检测到本 CronJob 方案已部署时会拒绝运行（避免两套机制争抢副本数），并自动清理插件已卸载的残留 HPA。控制台安装新插件后，重跑一次脚本即可。
 >
 > 核实结果：3.9.2、3.9.9 的 CRD 都只有 `status` 子资源（该变更曾在 3.9 发布分支被回退）；3.10.0 是第一个正式交付该能力的企业版 Chart。对这些旧版本，本 CronJob 方案仍是唯一的自动伸缩途径。
 

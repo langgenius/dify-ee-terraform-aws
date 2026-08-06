@@ -25,7 +25,15 @@ This solution uses a CronJob that periodically reads CPU metrics and calls the E
 >   name: <plugin-name>
 > ```
 >
-> On chart >= 3.10.0, **do not use this CronJob** — set `enable_plugin_hpa = true` in `cloud/aws/tf` instead (see `terraform.tfvars.example`), which auto-discovers `DifyPlugin` resources and creates the HPAs, verifying the CRD capability at plan time. Note this is a **day-2 switch**: keep it `false` on the first deployment, and enable it only after the Dify chart is installed and plugins exist in the console (before that, the `enterprise.dify.ai` API group is unregistered and discovery fails the apply — and there is nothing to scale anyway).
+> On chart >= 3.10.0, **do not use this CronJob** — use the sibling script instead:
+>
+> ```bash
+> ./setup-plugin-hpa.sh              # discovers all DifyPlugin resources, creates native HPAs
+> ./setup-plugin-hpa.sh --help       # min/max replicas, CPU/memory targets, per-plugin selection
+> ./setup-plugin-hpa.sh --uninstall  # removes the HPAs it manages
+> ```
+>
+> It verifies the CRD `/scale` capability up front (failing with guidance on older charts), refuses to run alongside this CronJob to avoid the two mechanisms fighting over replica counts, and cleans up HPAs whose plugin was uninstalled. After installing new plugins in the Enterprise console, simply re-run it.
 >
 > Verified: the 3.9.2 and 3.9.9 CRDs only have the `status` subresource (the scale change was reverted on the 3.9 release branch); 3.10.0 is the first enterprise chart to deliver it. This CronJob remains the only autoscaling path for those older versions.
 
