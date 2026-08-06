@@ -683,6 +683,18 @@ variable "enable_plugin_hpa" {
       dependencies; ensure Metrics Server is enabled).
     - Plugin pods must have CPU resource requests for utilization-based scaling.
 
+    DAY-2 ONLY - KEEP false ON FIRST DEPLOYMENT: this option MUST stay false until
+    the Dify Helm chart is installed (scripts step 4) AND at least one plugin has
+    been installed via the Enterprise console. Before the chart is installed the
+    enterprise.dify.ai/v1 API group is not registered and discovery fails the
+    apply; before any plugin is installed there are zero DifyPlugin resources to
+    scale, so enabling early is pointless regardless. Sequence:
+      terraform apply (false) -> install Dify chart >= 3.10.0 -> install plugins
+      in console -> set enable_plugin_hpa = true -> terraform apply.
+    (This differs from enable_hpa, which may be true from the first apply: HPAs
+    targeting Deployments tolerate a not-yet-existing target, but plugin discovery
+    needs the CRD API to exist.)
+
     DISCOVERY & DRIFT: DifyPlugin resources are auto-discovered from the cluster at
     plan time. Plugins installed via the Enterprise console AFTER the last
     `terraform apply` are NOT covered until the next apply - re-run `terraform apply`
