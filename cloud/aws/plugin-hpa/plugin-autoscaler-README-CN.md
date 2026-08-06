@@ -6,7 +6,28 @@ Dify Enterprise 的插件以独立 Pod 形式运行，由 `dify-crd-controller` 
 
 本方案通过 CronJob 定期读取 CPU 指标，调用 Enterprise 内部 Scale API 修改 CRD 副本数，实现与 CRD Controller 协同的自动伸缩。
 
-> **适用范围**：本方案仅适用于 `DifyPlugin` CRD **不支持** `scale` subresource 的 Dify Enterprise 版本。如果所用版本已支持插件 scale subresource，请直接对 `DifyPlugin` 资源使用标准 Kubernetes HPA，无需本 CronJob 方案。
+> **适用范围 —— 仅作为 3.10.0 之前版本的暂行方案。**
+> 从 Dify 企业版 Helm Chart **3.10.0**（对应 Community appVersion 1.14.1，发布于 2026-05-27）开始，`DifyPlugin` CRD 已内置 Kubernetes `/scale` 子资源：
+>
+> ```yaml
+> scale:
+>   specReplicasPath: .spec.runner.k8sPod.replica
+>   statusReplicasPath: .status.replicas
+>   labelSelectorPath: .status.selector
+> ```
+>
+> 因此标准 Kubernetes HPA 可以直接指向 `DifyPlugin` 资源：
+>
+> ```yaml
+> scaleTargetRef:
+>   apiVersion: enterprise.dify.ai/v1
+>   kind: DifyPlugin
+>   name: <plugin-name>
+> ```
+>
+> Chart >= 3.10.0 时**请勿使用本 CronJob 方案** —— 改为在 `cloud/aws/tf` 中设置 `enable_plugin_hpa = true`（参见 `terraform.tfvars.example`）：Terraform 会自动发现集群中的 `DifyPlugin` 资源并创建对应 HPA，且在 plan 阶段校验 CRD 是否具备 scale 能力。
+>
+> 核实结果：3.9.2、3.9.9 的 CRD 都只有 `status` 子资源（该变更曾在 3.9 发布分支被回退）；3.10.0 是第一个正式交付该能力的企业版 Chart。对这些旧版本，本 CronJob 方案仍是唯一的自动伸缩途径。
 
 ## 工作原理
 

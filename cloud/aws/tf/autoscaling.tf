@@ -261,7 +261,9 @@ resource "kubernetes_horizontal_pod_autoscaler_v2" "dify" {
   for_each = local.hpa_configs
 
   metadata {
-    name      = "dify-${each.key}-hpa"
+    # replace(): map keys like "plugin_daemon" would otherwise produce an
+    # invalid DNS-1123 object name (underscores are rejected at apply time).
+    name      = "dify-${replace(each.key, "_", "-")}-hpa"
     namespace = "dify"
   }
 
@@ -347,6 +349,172 @@ resource "kubernetes_horizontal_pod_autoscaler_v2" "dify" {
 
   # HPA resources are created before Dify Helm deployment
   # Kubernetes will gracefully handle this until the target deployment exists
+  depends_on = [
+    helm_release.metrics_server
+  ]
+}
+
+# ──────────────── Plugin Horizontal Pod Autoscalers (chart >= 3.10.0) ────────────────
+# Dify Enterprise plugins run as pods owned by DifyPlugin custom resources
+# (enterprise.dify.ai/v1), not plain Deployments: any replica change made
+# directly on the Deployment is reverted by dify-crd-controller. Starting with
+# Dify EE Helm chart 3.10.0 (appVersion 1.14.1) the DifyPlugin CRD ships the
+# Kubernetes /scale subresource:
+#
+#   scale:
+#     specReplicasPath:   .spec.runner.k8sPod.replica
+#     statusReplicasPath: .status.replicas
+#     labelSelectorPath:  .status.selector
+#
+# so a standard HPA can target the DifyPlugin resource itself and the CRD
+# controller propagates the replica change. For charts < 3.10.0 (CRD has only
+# the status subresource) use the CronJob workaround in cloud/aws/plugin-hpa/.
+#
+# Rather than trusting a user-declared chart version (the scale subresource was
+# once reverted on the 3.9 release branch, so version numbers are not ground
+# truth), the live CRD is inspected at plan time and a precondition rejects the
+# apply with a clear message when /scale is missing.
+#
+# DRIFT NOTE: DifyPlugin resources are created at runtime when plugins are
+# installed via the Enterprise console. Discovery happens at plan time, so
+# plugins installed after the last `terraform apply` are not autoscaled until
+# the next apply.
+
+data "kubernetes_resource" "difyplugin_crd" {
+  count = var.enable_plugin_hpa ? 1 : 0
+
+  api_version = "apiextensions.k8s.io/v1"
+  kind        = "CustomResourceDefinition"
+
+  metadata {
+    name = "difyplugins.enterprise.dify.ai"
+  }
+}
+
+data "kubernetes_resources" "dify_plugins" {
+  count = var.enable_plugin_hpa ? 1 : 0
+
+  api_version = "enterprise.dify.ai/v1"
+  kind        = "DifyPlugin"
+  namespace   = "dify"
+}
+
+locals {
+  # True when any served version of the DifyPlugin CRD declares the /scale
+  # subresource (first delivered in Dify EE Helm chart 3.10.0).
+  difyplugin_scale_supported = var.enable_plugin_hpa ? anytrue([
+    for v in try(data.kubernetes_resource.difyplugin_crd[0].object.spec.versions, []) :
+    can(v.subresources.scale.specReplicasPath)
+  ]) : false
+
+  # Auto-discovered DifyPlugin names merged with defaults + per-plugin overrides.
+  plugin_hpa_configs = {
+    for name in(var.enable_plugin_hpa ? [
+      for obj in try(data.kubernetes_resources.dify_plugins[0].objects, []) : obj.metadata.name
+    ] : []) :
+    name => {
+      min_replicas                    = coalesce(try(var.plugin_hpa_overrides[name].min_replicas, null), var.plugin_hpa_defaults.min_replicas)
+      max_replicas                    = coalesce(try(var.plugin_hpa_overrides[name].max_replicas, null), var.plugin_hpa_defaults.max_replicas)
+      target_cpu_utilization          = coalesce(try(var.plugin_hpa_overrides[name].target_cpu_utilization, null), var.plugin_hpa_defaults.target_cpu_utilization)
+      target_memory_utilization       = try(coalesce(try(var.plugin_hpa_overrides[name].target_memory_utilization, null), var.plugin_hpa_defaults.target_memory_utilization), null)
+      scale_down_stabilization_window = coalesce(try(var.plugin_hpa_overrides[name].scale_down_stabilization_window, null), var.plugin_hpa_defaults.scale_down_stabilization_window)
+      scale_up_stabilization_window   = coalesce(try(var.plugin_hpa_overrides[name].scale_up_stabilization_window, null), var.plugin_hpa_defaults.scale_up_stabilization_window)
+    }
+    if try(var.plugin_hpa_overrides[name].enabled, true)
+  }
+}
+
+resource "kubernetes_horizontal_pod_autoscaler_v2" "dify_plugin" {
+  for_each = local.plugin_hpa_configs
+
+  metadata {
+    name      = "dify-plugin-${each.key}-hpa"
+    namespace = "dify"
+  }
+
+  spec {
+    scale_target_ref {
+      api_version = "enterprise.dify.ai/v1"
+      kind        = "DifyPlugin"
+      name        = each.key
+    }
+
+    min_replicas = each.value.min_replicas
+    max_replicas = each.value.max_replicas
+
+    # CPU metric (always present). Requires CPU requests on plugin pods.
+    metric {
+      type = "Resource"
+      resource {
+        name = "cpu"
+        target {
+          type                = "Utilization"
+          average_utilization = each.value.target_cpu_utilization
+        }
+      }
+    }
+
+    # Memory metric (conditional - only if target_memory_utilization is set)
+    dynamic "metric" {
+      for_each = each.value.target_memory_utilization != null ? [1] : []
+      content {
+        type = "Resource"
+        resource {
+          name = "memory"
+          target {
+            type                = "Utilization"
+            average_utilization = each.value.target_memory_utilization
+          }
+        }
+      }
+    }
+
+    behavior {
+      scale_down {
+        stabilization_window_seconds = each.value.scale_down_stabilization_window
+
+        policy {
+          period_seconds = 60
+          type           = "Percent"
+          value          = 10 # Scale down by max 10% of current replicas per minute
+        }
+
+        policy {
+          period_seconds = 60
+          type           = "Pods"
+          value          = 2 # Scale down by max 2 pods per minute
+        }
+
+        select_policy = "Min" # Use the policy that results in slower scale down
+      }
+
+      scale_up {
+        stabilization_window_seconds = each.value.scale_up_stabilization_window
+
+        policy {
+          period_seconds = 60
+          type           = "Percent"
+          value          = 50 # Scale up by max 50% of current replicas per minute
+        }
+
+        policy {
+          period_seconds = 60
+          type           = "Pods"
+          value          = 4 # Scale up by max 4 pods per minute
+        }
+
+        select_policy = "Max" # Use the policy that results in faster scale up
+      }
+    }
+  }
+
+  lifecycle {
+    precondition {
+      condition     = local.difyplugin_scale_supported
+      error_message = "The DifyPlugin CRD on this cluster does not expose the /scale subresource, so HPA cannot scale plugin pods. This requires Dify EE Helm chart >= 3.10.0 (appVersion 1.14.1); 3.9.x and earlier only ship the status subresource. Either upgrade the chart or use the CronJob-based workaround in cloud/aws/plugin-hpa/."
+    }
+  }
+
   depends_on = [
     helm_release.metrics_server
   ]

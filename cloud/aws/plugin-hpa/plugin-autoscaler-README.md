@@ -6,7 +6,28 @@ Dify Enterprise plugins run as independent Pods, with replica counts managed by 
 
 This solution uses a CronJob that periodically reads CPU metrics and calls the Enterprise internal Scale API to modify CRD replica counts, achieving autoscaling in coordination with the CRD Controller.
 
-> **Applicability**: This solution is only for Dify Enterprise versions where the `DifyPlugin` CRD does **not** support the `scale` subresource. On versions that do support the plugin scale subresource, use standard Kubernetes HPA targeting the `DifyPlugin` resource directly instead of this CronJob-based workaround.
+> **Applicability — interim workaround for charts earlier than 3.10.0 only.**
+> Starting with Dify EE Helm chart **3.10.0** (community appVersion 1.14.1, released 2026-05-27), the `DifyPlugin` CRD ships the Kubernetes `/scale` subresource:
+>
+> ```yaml
+> scale:
+>   specReplicasPath: .spec.runner.k8sPod.replica
+>   statusReplicasPath: .status.replicas
+>   labelSelectorPath: .status.selector
+> ```
+>
+> so standard Kubernetes HPA can target the `DifyPlugin` resource directly:
+>
+> ```yaml
+> scaleTargetRef:
+>   apiVersion: enterprise.dify.ai/v1
+>   kind: DifyPlugin
+>   name: <plugin-name>
+> ```
+>
+> On chart >= 3.10.0, **do not use this CronJob** — set `enable_plugin_hpa = true` in `cloud/aws/tf` instead (see `terraform.tfvars.example`), which auto-discovers `DifyPlugin` resources and creates the HPAs, verifying the CRD capability at plan time.
+>
+> Verified: the 3.9.2 and 3.9.9 CRDs only have the `status` subresource (the scale change was reverted on the 3.9 release branch); 3.10.0 is the first enterprise chart to deliver it. This CronJob remains the only autoscaling path for those older versions.
 
 ## How It Works
 

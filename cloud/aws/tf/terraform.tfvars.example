@@ -258,6 +258,39 @@ hpa_config = {
   }
 }
 
+# Plugin HPA - Autoscaling for Dify plugin pods (DifyPlugin custom resources)
+# Plugin pods are managed by dify-crd-controller via the DifyPlugin CRD; standard
+# Deployment-targeted HPA does NOT work for them. This option creates HPAs that
+# target the DifyPlugin resource through the Kubernetes /scale subresource.
+#
+# IMPORTANT: Requires Dify EE Helm chart >= 3.10.0 (appVersion 1.14.1) - the first
+# chart whose DifyPlugin CRD ships the /scale subresource. The live CRD is checked
+# at plan time; on older charts (3.9.x and earlier) terraform fails with a clear
+# error - use the CronJob workaround in cloud/aws/plugin-hpa/ instead.
+# IMPORTANT: Requires install_metrics_server = true and CPU requests on plugin pods.
+# NOTE: Plugins are auto-discovered from the cluster at plan time. Plugins installed
+# via the Enterprise console after the last apply are not covered until you re-run
+# `terraform apply`.
+enable_plugin_hpa = false  # Set to true to enable (chart >= 3.10.0 only)
+
+# Defaults applied to every discovered plugin
+# plugin_hpa_defaults = {
+#   min_replicas           = 1
+#   max_replicas           = 4
+#   target_cpu_utilization = 70
+# }
+
+# Per-plugin overrides, keyed by DifyPlugin resource name
+# (kubectl get difyplugins.enterprise.dify.ai -n dify)
+# plugin_hpa_overrides = {
+#   "langgenius-openai-abc123" = {
+#     max_replicas = 8
+#   }
+#   "some-rarely-used-plugin" = {
+#     enabled = false  # exclude from autoscaling
+#   }
+# }
+
 # ──────────────── Important Notes ────────────────
 # 1. Please modify aws_account_id to your actual AWS Account ID
 # 2. Please modify aws_region to the AWS region where you want to deploy (availability zones will be automatically obtained)
