@@ -330,6 +330,8 @@ After the stabilization window expires (default 300 seconds), scale-down will oc
 | `setup-plugin-autoscaler.sh` | Interactive setup script (recommended) |
 | `plugin-autoscaler-states.yaml` | Declarative config file (edit and re-run script to update) |
 | `plugin-autoscaler-generated.yaml` | Generated deployment YAML (auto-generated, do not edit manually) |
+| `setup-plugin-hpa.sh` | Native HPA setup script for chart >= 3.10.0 (use instead of the CronJob) |
+| `plugin-hpa-generated.yaml` | Generated HPA YAML from `setup-plugin-hpa.sh` (auto-generated, do not edit manually) |
 
 ## Troubleshooting
 

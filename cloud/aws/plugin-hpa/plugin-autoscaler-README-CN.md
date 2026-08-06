@@ -330,6 +330,8 @@ kubectl exec -n <namespace> <pod-name> -c dify-plugin -- \
 | `setup-plugin-autoscaler.sh` | 交互式安装脚本（推荐） |
 | `plugin-autoscaler-states.yaml` | 声明式配置文件（编辑后重跑脚本即可更新） |
 | `plugin-autoscaler-generated.yaml` | 脚本生成的实际部署 YAML（自动生成，勿手动编辑） |
+| `setup-plugin-hpa.sh` | Chart >= 3.10.0 原生 HPA 安装脚本（替代本 CronJob 方案） |
+| `plugin-hpa-generated.yaml` | `setup-plugin-hpa.sh` 生成的 HPA YAML（自动生成，勿手动编辑） |
 
 ## 故障排查
 
