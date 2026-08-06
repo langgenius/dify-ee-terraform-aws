@@ -25,15 +25,16 @@ This solution uses a CronJob that periodically reads CPU metrics and calls the E
 >   name: <plugin-name>
 > ```
 >
-> On chart >= 3.10.0, **do not use this CronJob** — use the sibling script instead:
+> On chart >= 3.10.0, **do not use this CronJob** — use the sibling script instead (full docs: [`plugin-hpa-README.md`](./plugin-hpa-README.md)):
 >
 > ```bash
-> ./setup-plugin-hpa.sh              # discovers all DifyPlugin resources, creates native HPAs
-> ./setup-plugin-hpa.sh --help       # min/max replicas, CPU/memory targets, per-plugin selection
-> ./setup-plugin-hpa.sh --uninstall  # removes the HPAs it manages
+> ./setup-plugin-hpa.sh               # discovers all DifyPlugin resources, creates native HPAs
+> ./setup-plugin-hpa.sh --auto-cover  # + in-cluster syncer: new plugins get HPAs automatically
+> ./setup-plugin-hpa.sh --help        # min/max replicas, CPU/memory targets, per-plugin selection
+> ./setup-plugin-hpa.sh --uninstall   # removes the HPAs (and syncer) it manages
 > ```
 >
-> It verifies the CRD `/scale` capability up front (failing with guidance on older charts), refuses to run alongside this CronJob to avoid the two mechanisms fighting over replica counts, and cleans up HPAs whose plugin was uninstalled. After installing new plugins in the Enterprise console, simply re-run it.
+> It verifies the CRD `/scale` capability up front (failing with guidance on older charts) and refuses to run alongside this CronJob to avoid the two mechanisms fighting over replica counts.
 >
 > Verified: the 3.9.2 and 3.9.9 CRDs only have the `status` subresource (the scale change was reverted on the 3.9 release branch); 3.10.0 is the first enterprise chart to deliver it. This CronJob remains the only autoscaling path for those older versions.
 
@@ -330,7 +331,7 @@ After the stabilization window expires (default 300 seconds), scale-down will oc
 | `setup-plugin-autoscaler.sh` | Interactive setup script (recommended) |
 | `plugin-autoscaler-states.yaml` | Declarative config file (edit and re-run script to update) |
 | `plugin-autoscaler-generated.yaml` | Generated deployment YAML (auto-generated, do not edit manually) |
-| `setup-plugin-hpa.sh` | Native HPA setup script for chart >= 3.10.0 (use instead of the CronJob) |
+| `setup-plugin-hpa.sh` | Native HPA setup script for chart >= 3.10.0 (use instead of the CronJob) — see [`plugin-hpa-README.md`](./plugin-hpa-README.md) |
 | `plugin-hpa-generated.yaml` | Generated HPA YAML from `setup-plugin-hpa.sh` (auto-generated, do not edit manually) |
 
 ## Troubleshooting

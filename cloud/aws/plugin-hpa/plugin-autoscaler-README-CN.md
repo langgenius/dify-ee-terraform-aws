@@ -25,15 +25,16 @@ Dify Enterprise 的插件以独立 Pod 形式运行，由 `dify-crd-controller` 
 >   name: <plugin-name>
 > ```
 >
-> Chart >= 3.10.0 时**请勿使用本 CronJob 方案** —— 改用同目录的脚本：
+> Chart >= 3.10.0 时**请勿使用本 CronJob 方案** —— 改用同目录的脚本（完整文档：[`plugin-hpa-README-CN.md`](./plugin-hpa-README-CN.md)）：
 >
 > ```bash
-> ./setup-plugin-hpa.sh              # 自动发现全部 DifyPlugin 资源并创建原生 HPA
-> ./setup-plugin-hpa.sh --help       # 副本范围、CPU/内存目标、按插件筛选等参数
-> ./setup-plugin-hpa.sh --uninstall  # 删除由脚本管理的全部 HPA
+> ./setup-plugin-hpa.sh               # 自动发现全部 DifyPlugin 资源并创建原生 HPA
+> ./setup-plugin-hpa.sh --auto-cover  # + 集群内 syncer：新装插件自动获得 HPA
+> ./setup-plugin-hpa.sh --help        # 副本范围、CPU/内存目标、按插件筛选等参数
+> ./setup-plugin-hpa.sh --uninstall   # 删除由脚本管理的全部 HPA（及 syncer）
 > ```
 >
-> 脚本会预先校验 CRD 的 `/scale` 能力（旧 Chart 上直接报错并给出指引），检测到本 CronJob 方案已部署时会拒绝运行（避免两套机制争抢副本数），并自动清理插件已卸载的残留 HPA。控制台安装新插件后，重跑一次脚本即可。
+> 脚本会预先校验 CRD 的 `/scale` 能力（旧 Chart 上直接报错并给出指引），检测到本 CronJob 方案已部署时会拒绝运行（避免两套机制争抢副本数）。
 >
 > 核实结果：3.9.2、3.9.9 的 CRD 都只有 `status` 子资源（该变更曾在 3.9 发布分支被回退）；3.10.0 是第一个正式交付该能力的企业版 Chart。对这些旧版本，本 CronJob 方案仍是唯一的自动伸缩途径。
 
@@ -330,7 +331,7 @@ kubectl exec -n <namespace> <pod-name> -c dify-plugin -- \
 | `setup-plugin-autoscaler.sh` | 交互式安装脚本（推荐） |
 | `plugin-autoscaler-states.yaml` | 声明式配置文件（编辑后重跑脚本即可更新） |
 | `plugin-autoscaler-generated.yaml` | 脚本生成的实际部署 YAML（自动生成，勿手动编辑） |
-| `setup-plugin-hpa.sh` | Chart >= 3.10.0 原生 HPA 安装脚本（替代本 CronJob 方案） |
+| `setup-plugin-hpa.sh` | Chart >= 3.10.0 原生 HPA 安装脚本（替代本 CronJob 方案）—— 详见 [`plugin-hpa-README-CN.md`](./plugin-hpa-README-CN.md) |
 | `plugin-hpa-generated.yaml` | `setup-plugin-hpa.sh` 生成的 HPA YAML（自动生成，勿手动编辑） |
 
 ## 故障排查

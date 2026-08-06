@@ -44,6 +44,7 @@ DRY_RUN=false
 UNINSTALL=false
 ASSUME_YES=false
 FORCE=false
+AUTO_COVER=false
 
 # --- Colors ---
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
@@ -69,15 +70,21 @@ Options:
       --memory-target N     Target memory utilization %   (default: unset)
       --scale-up-window S   scaleUp stabilization seconds   (default: 0)
       --scale-down-window S scaleDown stabilization seconds (default: 300)
+      --auto-cover          Also deploy the plugin-hpa-syncer CronJob: every 5
+                            minutes it creates HPAs (with this run's defaults)
+                            for newly installed plugins and prunes HPAs whose
+                            plugin was uninstalled. Existing HPAs are never
+                            modified, so per-plugin tuning survives.
       --dry-run             Generate YAML only, do not apply
       --force               Proceed even if the CronJob autoscaler is deployed
-      --uninstall           Delete all HPAs managed by this script
+      --uninstall           Delete all HPAs managed by this script (and the
+                            plugin-hpa-syncer CronJob if deployed)
   -y, --yes                 Non-interactive; accept defaults, skip prompts
   -h, --help                Show this help
 
-Re-run the script after installing new plugins to cover them. To tune a
-subset of plugins differently, re-run with --plugins and new values;
-existing HPAs for other plugins are left untouched.
+Without --auto-cover, re-run the script after installing new plugins to cover
+them. To tune a subset of plugins differently, re-run with --plugins and new
+values; existing HPAs for other plugins are left untouched.
 EOF
 }
 
@@ -91,6 +98,7 @@ while [ $# -gt 0 ]; do
     --memory-target)      MEMORY_TARGET="$2"; shift 2 ;;
     --scale-up-window)    SCALEUP_WINDOW="$2"; shift 2 ;;
     --scale-down-window)  SCALEDOWN_WINDOW="$2"; shift 2 ;;
+    --auto-cover)         AUTO_COVER=true; shift ;;
     --dry-run)            DRY_RUN=true; shift ;;
     --force)              FORCE=true; shift ;;
     --uninstall)          UNINSTALL=true; shift ;;
@@ -157,13 +165,20 @@ fi
 # ============================================================
 if $UNINSTALL; then
   count=$(kubectl get hpa -n "$NAMESPACE" -l "$MANAGED_BY_LABEL" --no-headers 2>/dev/null | wc -l | tr -d ' ')
-  if [ "$count" -eq 0 ]; then
-    info "No managed plugin HPAs found in namespace '$NAMESPACE'. Nothing to do."
+  syncer_exists=false
+  kubectl get cronjob plugin-hpa-syncer -n "$NAMESPACE" >/dev/null 2>&1 && syncer_exists=true
+  if [ "$count" -eq 0 ] && ! $syncer_exists; then
+    info "No managed plugin HPAs or plugin-hpa-syncer found in namespace '$NAMESPACE'. Nothing to do."
     exit 0
   fi
-  kubectl get hpa -n "$NAMESPACE" -l "$MANAGED_BY_LABEL"
-  confirm "Delete these $count HPA(s)?" || { info "Aborted."; exit 0; }
-  kubectl delete hpa -n "$NAMESPACE" -l "$MANAGED_BY_LABEL"
+  [ "$count" -gt 0 ] && kubectl get hpa -n "$NAMESPACE" -l "$MANAGED_BY_LABEL"
+  $syncer_exists && info "plugin-hpa-syncer CronJob is deployed and will be removed as well."
+  confirm "Delete $count HPA(s)$($syncer_exists && echo ' and the plugin-hpa-syncer')?" || { info "Aborted."; exit 0; }
+  [ "$count" -gt 0 ] && kubectl delete hpa -n "$NAMESPACE" -l "$MANAGED_BY_LABEL"
+  if $syncer_exists; then
+    kubectl delete -n "$NAMESPACE" cronjob/plugin-hpa-syncer serviceaccount/plugin-hpa-syncer \
+      role/plugin-hpa-syncer rolebinding/plugin-hpa-syncer configmap/plugin-hpa-template --ignore-not-found
+  fi
   ok "Removed $count plugin HPA(s) from '$NAMESPACE'."
   exit 0
 fi
@@ -236,6 +251,7 @@ echo ""
 info "Will create/update HPAs for ${#PLUGINS[@]} plugin(s) in '$NAMESPACE':"
 echo -e "  minReplicas=${BOLD}${MIN_REPLICAS}${NC} maxReplicas=${BOLD}${MAX_REPLICAS}${NC} cpuTarget=${BOLD}${CPU_TARGET}%${NC}${MEMORY_TARGET:+ memoryTarget=${BOLD}${MEMORY_TARGET}%${NC}}"
 echo -e "  scaleUpWindow=${SCALEUP_WINDOW}s scaleDownWindow=${SCALEDOWN_WINDOW}s"
+$AUTO_COVER && info "--auto-cover: the plugin-hpa-syncer CronJob will also be deployed (new plugins get HPAs automatically, every 5 min)."
 confirm "Proceed?" || { info "Aborted."; exit 0; }
 
 # ============================================================
@@ -302,6 +318,173 @@ ENDOFYAML
           periodSeconds: 60
 ENDOFYAML
 done
+
+# --- Optional: in-cluster syncer so newly installed plugins get HPAs automatically ---
+if $AUTO_COVER; then
+  mem_tpl=""
+  if [ -n "$MEMORY_TARGET" ]; then
+    mem_tpl="
+        - type: Resource
+          resource:
+            name: memory
+            target:
+              type: Utilization
+              averageUtilization: ${MEMORY_TARGET}"
+  fi
+  cat >> "$OUTPUT_FILE" <<ENDOFYAML
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: plugin-hpa-template
+  namespace: ${NAMESPACE}
+  labels:
+    app.kubernetes.io/managed-by: dify-plugin-hpa
+data:
+  # Template applied by plugin-hpa-syncer for every DifyPlugin without an HPA.
+  # __PLUGIN__ is replaced with the DifyPlugin name at sync time.
+  hpa.yaml: |
+    apiVersion: autoscaling/v2
+    kind: HorizontalPodAutoscaler
+    metadata:
+      name: dify-plugin-__PLUGIN__-hpa
+      namespace: ${NAMESPACE}
+      labels:
+        app.kubernetes.io/managed-by: dify-plugin-hpa
+        app.kubernetes.io/part-of: dify
+    spec:
+      scaleTargetRef:
+        apiVersion: enterprise.dify.ai/v1
+        kind: DifyPlugin
+        name: __PLUGIN__
+      minReplicas: ${MIN_REPLICAS}
+      maxReplicas: ${MAX_REPLICAS}
+      metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: Utilization
+              averageUtilization: ${CPU_TARGET}${mem_tpl}
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: ${SCALEUP_WINDOW}
+          selectPolicy: Max
+          policies:
+            - type: Percent
+              value: 50
+              periodSeconds: 60
+            - type: Pods
+              value: 4
+              periodSeconds: 60
+        scaleDown:
+          stabilizationWindowSeconds: ${SCALEDOWN_WINDOW}
+          selectPolicy: Min
+          policies:
+            - type: Percent
+              value: 10
+              periodSeconds: 60
+            - type: Pods
+              value: 2
+              periodSeconds: 60
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: plugin-hpa-syncer
+  namespace: ${NAMESPACE}
+  labels:
+    app.kubernetes.io/managed-by: dify-plugin-hpa
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: plugin-hpa-syncer
+  namespace: ${NAMESPACE}
+  labels:
+    app.kubernetes.io/managed-by: dify-plugin-hpa
+rules:
+  - apiGroups: ["enterprise.dify.ai"]
+    resources: ["difyplugins"]
+    verbs: ["get", "list"]
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
+    verbs: ["get", "list", "create", "delete", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: plugin-hpa-syncer
+  namespace: ${NAMESPACE}
+  labels:
+    app.kubernetes.io/managed-by: dify-plugin-hpa
+subjects:
+  - kind: ServiceAccount
+    name: plugin-hpa-syncer
+    namespace: ${NAMESPACE}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: plugin-hpa-syncer
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: plugin-hpa-syncer
+  namespace: ${NAMESPACE}
+  labels:
+    app.kubernetes.io/managed-by: dify-plugin-hpa
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 120
+      template:
+        spec:
+          serviceAccountName: plugin-hpa-syncer
+          restartPolicy: Never
+          volumes:
+            - name: template
+              configMap:
+                name: plugin-hpa-template
+          containers:
+            - name: syncer
+              image: bitnami/kubectl:latest
+              volumeMounts:
+                - name: template
+                  mountPath: /template
+              command:
+                - /bin/bash
+                - -c
+                - |
+                  set -e
+                  NS="${NAMESPACE}"
+                  echo "[\$(date -Iseconds)] plugin-hpa-syncer run"
+                  created=0; pruned=0
+                  # Create HPAs for plugins that do not have one yet.
+                  # Existing HPAs are never modified, so per-plugin tuning survives.
+                  for plugin in \$(kubectl get difyplugins.enterprise.dify.ai -n "\$NS" -o jsonpath='{range .items[*]}{.metadata.name}{" "}{end}'); do
+                    if ! kubectl get hpa "dify-plugin-\${plugin}-hpa" -n "\$NS" >/dev/null 2>&1; then
+                      sed "s/__PLUGIN__/\${plugin}/g" /template/hpa.yaml | kubectl apply -f -
+                      created=\$((created+1))
+                      echo "  created HPA for \${plugin}"
+                    fi
+                  done
+                  # Prune managed HPAs whose DifyPlugin no longer exists.
+                  for hpa in \$(kubectl get hpa -n "\$NS" -l app.kubernetes.io/managed-by=dify-plugin-hpa -o jsonpath='{range .items[*]}{.metadata.name}{" "}{end}'); do
+                    target=\$(kubectl get hpa "\$hpa" -n "\$NS" -o jsonpath='{.spec.scaleTargetRef.name}' 2>/dev/null)
+                    if [ -n "\$target" ] && ! kubectl get difyplugins.enterprise.dify.ai "\$target" -n "\$NS" >/dev/null 2>&1; then
+                      kubectl delete hpa "\$hpa" -n "\$NS"
+                      pruned=\$((pruned+1))
+                      echo "  pruned stale HPA \$hpa (plugin \$target gone)"
+                    fi
+                  done
+                  echo "Done (created=\$created pruned=\$pruned)"
+ENDOFYAML
+fi
 ok "Generated $OUTPUT_FILE"
 
 if $DRY_RUN; then
@@ -337,6 +520,11 @@ ok "Plugin HPA(s) deployed successfully!"
 echo ""
 echo "    Status:      kubectl get hpa -n $NAMESPACE -l $MANAGED_BY_LABEL"
 echo "    Watch:       kubectl get hpa -n $NAMESPACE -w"
-echo "    New plugins: re-run this script after installing plugins in the console"
+if $AUTO_COVER; then
+  echo "    Auto-cover:  plugin-hpa-syncer runs every 5 min; new plugins get HPAs automatically"
+  echo "    Syncer logs: kubectl logs -n $NAMESPACE job/\$(kubectl get jobs -n $NAMESPACE --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}')"
+else
+  echo "    New plugins: re-run this script after installing plugins in the console (or use --auto-cover)"
+fi
 echo "    Uninstall:   ./setup-plugin-hpa.sh -n $NAMESPACE --uninstall"
 echo ""
