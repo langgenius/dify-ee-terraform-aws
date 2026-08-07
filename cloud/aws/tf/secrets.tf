@@ -15,3 +15,13 @@ resource "random_bytes" "password_encryption_key" {
 resource "random_bytes" "agent_backend_secret_key" {
   length = 32
 }
+
+# Main application secret key (chart: global.appSecretKey and the {{secret_key}}
+# placeholder consumed by sandbox.apiKey, enterprise.appSecretKey / innerApi etc.).
+# Persisted in TF state so re-runs of scripts/4_generate_dify_helm.sh keep the
+# same key — rotating it invalidates credentials encrypted at rest in the
+# database (model provider keys, etc.). Before this existed, script 4 fell back
+# to a fresh `openssl rand -base64 42` on every run and silently rotated the key.
+resource "random_bytes" "app_secret_key" {
+  length = 42
+}

@@ -28,10 +28,11 @@
 # Note: Approximate 17G Disk Space will be used, please make sure you have enough space in nodes.
 #       Each unstructured replica will use approx. 8.4G Disk Space.
 ###################################
-# Profile: quick-poc (HPA off)
+# Profile: quick-poc (HPA off — set enable_hpa = false in terraform.tfvars)
 # - All deployments use static replicas = 1 for minimal footprint.
-# - Assumes enable_hpa = false in terraform.tfvars (the default).
-# - If HPA is enabled on this cluster, static replicas below are overridden by HPA.
+# - No resources.requests are set, so HPA CANNOT work with this profile
+#   (HPA needs CPU/memory requests to compute utilization; targets stay
+#   <unknown>). Use the test or prod profile to exercise HPA.
 ###################################
 global:
   appSecretKey: '{{secret_key}}'

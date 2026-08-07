@@ -31,11 +31,16 @@
 # Note: Approximate 27G Disk Space will be used, please make sure you have enough space in nodes.
 #       Each unstructured replica will use approx. 8.4G Disk Space.
 ###################################
-# Profile: test (HPA off — static replicas per component)
+# Profile: test (HPA-ready — resource requests set on HPA-managed components)
 # - api/worker use static replicas = 3 to exercise multi-pod behavior in tests.
 # - Other components default to replicas = 1.
-# - Assumes enable_hpa = false in terraform.tfvars (the default).
-# - If HPA is enabled on this cluster, static replicas below are overridden by HPA.
+# - Works with enable_hpa = true OR false in terraform.tfvars:
+#   * enable_hpa = false: static replicas below apply as-is.
+#   * enable_hpa = true: HPA (see hpa_config in tf/variables.tf) overrides the
+#     static replicas for api/worker/web/sandbox. The resources.requests below
+#     are REQUIRED for that — without CPU/memory requests the HPA cannot
+#     compute utilization and stays at TARGETS <unknown>.
+# - quick-poc profile intentionally has no requests: pair it with enable_hpa = false.
 ###################################
 global:
   appSecretKey: '{{secret_key}}'
@@ -68,10 +73,18 @@ api:
   serviceAccountName: "dify-api-sa"
   innerApi:
     apiKey: "{{secret_key}}"
+  resources:
+    requests: # required by HPA for CPU/memory utilization metrics
+      cpu: 250m
+      memory: 1024Mi
 worker:
   replicas: 3
   celeryWorkerAmount: 1
   serviceAccountName: "dify-api-sa"
+  resources:
+    requests: # required by HPA for CPU/memory utilization metrics
+      cpu: 250m
+      memory: 512Mi
 # Override chart default additionalWorkers list to disable the built-in
 # trigger-worker. The main `worker` above already consumes every Celery queue
 # (including the trigger queues: schedule_poller, schedule_executor,
@@ -95,9 +108,17 @@ workerBeat:
   serviceAccountName: "dify-api-sa"
 web:
   replicas: 1
+  resources:
+    requests: # required by HPA for CPU/memory utilization metrics
+      cpu: 100m
+      memory: 256Mi
 sandbox:
   replicas: 1
   apiKey: "{{secret_key}}"
+  resources:
+    requests: # required by HPA for CPU/memory utilization metrics
+      cpu: 100m
+      memory: 256Mi
 enterpriseAudit:
   replicas: 1
 enterprise:

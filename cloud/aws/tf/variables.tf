@@ -581,12 +581,15 @@ variable "hpa_config" {
   }))
 
   default = {
+    # api is CPU-only on purpose: the Python/gunicorn RSS baseline (~430Mi at
+    # idle, never released) dominates memory utilization, so a memory target
+    # tracks baseline growth instead of business load and ratchets replicas up
+    # without traffic. CPU tracks request volume directly.
     api = {
-      enabled                   = true
-      min_replicas              = 2
-      max_replicas              = 10
-      target_cpu_utilization    = 70
-      target_memory_utilization = 80
+      enabled                = true
+      min_replicas           = 2
+      max_replicas           = 10
+      target_cpu_utilization = 70
     }
     worker = {
       enabled                = true

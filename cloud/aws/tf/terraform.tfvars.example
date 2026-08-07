@@ -188,7 +188,7 @@ cluster_autoscaler_scale_down_unneeded_time = "10m"  # How long a node should be
 # IMPORTANT: HPA requires Metrics Server to be installed (set install_metrics_server = true)
 # IMPORTANT: When HPA is enabled, set static replicas to 1 in Helm values.yaml and let HPA manage the count
 # IMPORTANT: Deployments must have resource requests (cpu/memory) defined for HPA to work
-enable_hpa = false  # Set to true to enable
+enable_hpa = false # Profile pairing: quick-poc -> false (no resource requests, HPA cannot work); test/prod -> true supported (templates set resources.requests on HPA-managed components)
 
 # HPA configuration for each Dify component
 # Customize min/max replicas and target utilization based on your workload
@@ -198,7 +198,6 @@ hpa_config = {
     min_replicas              = 2
     max_replicas              = 10
     target_cpu_utilization    = 70
-    target_memory_utilization = 80
   }
   worker = {
     enabled                = true

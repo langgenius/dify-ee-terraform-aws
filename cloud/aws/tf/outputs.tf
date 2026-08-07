@@ -254,3 +254,9 @@ output "agent_backend_secret_key" {
   value       = replace(replace(replace(random_bytes.agent_backend_secret_key.base64, "+", "-"), "/", "_"), "=", "")
   sensitive   = true
 }
+
+output "app_secret_key" {
+  description = "Base64 key for global.appSecretKey / {{secret_key}} placeholder. Generated and persisted in TF state; stable across applies."
+  value       = random_bytes.app_secret_key.base64
+  sensitive   = true
+}
