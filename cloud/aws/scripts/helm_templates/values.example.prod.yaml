@@ -24,7 +24,7 @@
 # {{opensearch_user}} is the user for opensearch access. E.g. admin
 # {{opensearch_password}} is the password for opensearch access. E.g. DifyOpenSearchPass123!
 ###################################
-# Adapted for Dify Helm chart 3.9.x.
+# Adapted for Dify Helm chart 3.9.x–3.12.x.
 ###################################
 # Profile: prod (HPA on — set replicas = 1 for HPA-managed components)
 # - Assumes enable_hpa = true in terraform.tfvars. HPA manages replicas for
@@ -99,6 +99,9 @@ worker:
 #     replicas: 1
 #     celeryQueues: "workflow,workflow_storage,workflow_based_app_execution"
 #     celeryWorkerAmount: 2
+#
+# Still required at chart 3.12.0: the chart default continues to ship
+# trigger-worker enabled with no IRSA service account.
 #
 # Note: HPA is not currently wired up for additionalWorkers — any pods you
 # declare here scale via the static `replicas:` value above.
@@ -249,6 +252,38 @@ enterpriseCollector:
       cpu: 500m
       memory: 512Mi
 
+# ── New in chart 3.10.x–3.12.x ─────────────────────────
+# agent-backend (new in 3.12.0): backend for Dify Agent apps. Enabled by
+# default in the chart. The chart ships a PUBLIC default serverSecretKey;
+# always override it.
+agentBackend:
+  replicas: 2
+  serverSecretKey: "{{agent_backend_secret_key}}"
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1024Mi
+    requests:
+      cpu: 200m
+      memory: 256Mi
+
+# enterprise-rbac (new in 3.11.0): workspace RBAC gRPC service. Required.
+enterpriseRbac:
+  replicas: 3
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1024Mi
+    requests:
+      cpu: 200m
+      memory: 256Mi
+
+# Kubernetes Agent Sandbox (new in 3.12.0). Keep disabled unless the
+# kubernetes-sigs/agent-sandbox controller + CRDs are installed BEFORE the
+# chart upgrade — otherwise helm fails creating SandboxTemplate/SandboxWarmPool.
+sandboxGateway:
+  enabled: false
+
 ###################################
 # Persistence Configration
 ###################################
@@ -268,7 +303,7 @@ persistence:
     useAwsS3: true
 
 ###################################
-# External Database (Dify chart 3.9.x schema)
+# External Database (Dify chart 3.9.x–3.12.x schema)
 ###################################
 externalDatabase:
   enabled: true

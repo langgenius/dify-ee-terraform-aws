@@ -8,7 +8,7 @@ aws_region     = "us-east-1"  # Modify according to your actual region
 aws_account_id = "123456789012"  # Please modify to your actual AWS Account ID
 
 # ──────────────── Cluster Configuration ────────────────
-cluster_version = "1.33"
+cluster_version = "1.36"
 eks_arch       = "amd64"  # Options: amd64 or arm64
 
 # EKS node disk configuration
@@ -175,8 +175,8 @@ metrics_server_replicas = 2  # Production: 2 with PodDisruptionBudget, Test: 1
 # Cluster Autoscaler - Automatically scales EKS nodes
 # IMPORTANT: Requires max_size > min_size in node group configuration
 install_cluster_autoscaler = false  # Set to true to enable
-cluster_autoscaler_version = "9.35.0"
-cluster_autoscaler_image_tag = "v1.28.5"  # MUST match EKS cluster version (v1.28.x for EKS 1.28)
+cluster_autoscaler_version = "9.59.0"
+cluster_autoscaler_image_tag = "v1.36.1"  # MUST match EKS cluster version (v1.36.x for EKS 1.36)
 cluster_autoscaler_scale_down_delay = "10m"  # Wait time after scale up before considering scale down
 cluster_autoscaler_scale_down_unneeded_time = "10m"  # How long a node should be unneeded before scale down
 
@@ -252,6 +252,20 @@ hpa_config = {
   plugin_connector = {
     enabled                = false
     deployment_name        = "dify-plugin-connector"  # Custom deployment name
+    min_replicas           = 1
+    max_replicas           = 4
+    target_cpu_utilization = 70
+  }
+  agent_backend = {
+    enabled                = false
+    deployment_name        = "dify-agent-backend"  # Custom deployment name (new in chart 3.12.0)
+    min_replicas           = 1
+    max_replicas           = 4
+    target_cpu_utilization = 70
+  }
+  enterprise_rbac = {
+    enabled                = false
+    deployment_name        = "dify-enterprise-rbac"  # Custom deployment name (new in chart 3.11.0)
     min_replicas           = 1
     max_replicas           = 4
     target_cpu_utilization = 70

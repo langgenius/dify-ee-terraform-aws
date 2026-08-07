@@ -29,8 +29,9 @@ resource "aws_vpc" "main" {
   enable_dns_support   = true
 
   tags = {
-    Name        = "dify-${var.deployment_id}-vpc"
-    Environment = var.environment
+    Name                                          = "dify-${var.deployment_id}-vpc"
+    Environment                                   = var.environment
+    "kubernetes.io/cluster/${local.cluster_name}" = "shared"
   }
 }
 
@@ -56,9 +57,10 @@ resource "aws_subnet" "public" {
   map_public_ip_on_launch = false
 
   tags = {
-    Name                     = "dify-${var.deployment_id}-public-${count.index + 1}"
-    Environment              = var.environment
-    "kubernetes.io/role/elb" = "1"
+    Name                                          = "dify-${var.deployment_id}-public-${count.index + 1}"
+    Environment                                   = var.environment
+    "kubernetes.io/role/elb"                      = "1"
+    "kubernetes.io/cluster/${local.cluster_name}" = "shared"
   }
 }
 
@@ -70,9 +72,10 @@ resource "aws_subnet" "private" {
   availability_zone = local.availability_zones[count.index]
 
   tags = {
-    Name                              = "dify-${var.deployment_id}-private-${count.index + 1}"
-    Environment                       = var.environment
-    "kubernetes.io/role/internal-elb" = "1"
+    Name                                          = "dify-${var.deployment_id}-private-${count.index + 1}"
+    Environment                                   = var.environment
+    "kubernetes.io/role/internal-elb"             = "1"
+    "kubernetes.io/cluster/${local.cluster_name}" = "shared"
   }
 }
 

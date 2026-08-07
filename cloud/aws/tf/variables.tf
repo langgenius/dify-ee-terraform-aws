@@ -152,9 +152,9 @@ variable "cert_manager_version" {
 # ──────────────── Infrastructure Configuration ────────────────
 
 variable "cluster_version" {
-  description = "EKS cluster version"
+  description = "EKS cluster version. Keep on a STANDARD_SUPPORT version (aws eks describe-cluster-versions) — extended-support versions bill $0.60/cluster/hour instead of $0.10."
   type        = string
-  default     = "1.28"
+  default     = "1.36"
 }
 
 variable "eks_arch" {
@@ -490,17 +490,17 @@ variable "install_cluster_autoscaler" {
 variable "cluster_autoscaler_version" {
   description = "Cluster Autoscaler Helm chart version"
   type        = string
-  default     = "9.35.0"
+  default     = "9.59.0"
 }
 
 variable "cluster_autoscaler_image_tag" {
-  description = "Cluster Autoscaler image tag (must match EKS cluster version, e.g., v1.28.5 for EKS 1.28)"
+  description = "Cluster Autoscaler image tag (must match EKS cluster version, e.g., v1.36.1 for EKS 1.36)"
   type        = string
-  default     = "v1.28.5"
+  default     = "v1.36.1"
 
   validation {
     condition     = can(regex("^v[0-9]+\\.[0-9]+\\.[0-9]+$", var.cluster_autoscaler_image_tag))
-    error_message = "cluster_autoscaler_image_tag must be in format v1.28.5 (semantic version with 'v' prefix)."
+    error_message = "cluster_autoscaler_image_tag must be in format v1.36.1 (semantic version with 'v' prefix)."
   }
 }
 
@@ -635,6 +635,20 @@ variable "hpa_config" {
     plugin_connector = {
       enabled                = false
       deployment_name        = "dify-plugin-connector"
+      min_replicas           = 1
+      max_replicas           = 4
+      target_cpu_utilization = 70
+    }
+    agent_backend = {
+      enabled                = false
+      deployment_name        = "dify-agent-backend"
+      min_replicas           = 1
+      max_replicas           = 4
+      target_cpu_utilization = 70
+    }
+    enterprise_rbac = {
+      enabled                = false
+      deployment_name        = "dify-enterprise-rbac"
       min_replicas           = 1
       max_replicas           = 4
       target_cpu_utilization = 70

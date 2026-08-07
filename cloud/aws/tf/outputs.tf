@@ -248,3 +248,9 @@ output "password_encryption_key" {
   value       = random_bytes.password_encryption_key.base64
   sensitive   = true
 }
+
+output "agent_backend_secret_key" {
+  description = "Unpadded base64url key for agentBackend.serverSecretKey (chart 3.12.0+). Generated and persisted in TF state; stable across applies."
+  value       = replace(replace(replace(random_bytes.agent_backend_secret_key.base64, "+", "-"), "/", "_"), "=", "")
+  sensitive   = true
+}

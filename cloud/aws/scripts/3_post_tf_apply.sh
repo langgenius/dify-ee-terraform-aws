@@ -110,6 +110,7 @@ get_terraform_outputs() {
 
     # Application secrets (TF-generated, stable across applies)
     PASSWORD_ENCRYPTION_KEY=$(cd "$TERRAFORM_DIR" && terraform output -raw password_encryption_key 2>/dev/null || echo "")
+    AGENT_BACKEND_SECRET_KEY=$(cd "$TERRAFORM_DIR" && terraform output -raw agent_backend_secret_key 2>/dev/null || echo "")
     
     # ServiceAccount information
     SERVICE_ACCOUNTS_INFO=$(cd "$TERRAFORM_DIR" && terraform output -json dify_ee_service_accounts_info 2>/dev/null || echo "{}")
@@ -349,6 +350,7 @@ DIFY_EE_ECR_PULL_ROLE_ARN=$DIFY_EE_ECR_PULL_ROLE_ARN
 
 # Application Secrets (TF-managed, stable across applies)
 PASSWORD_ENCRYPTION_KEY=$PASSWORD_ENCRYPTION_KEY
+AGENT_BACKEND_SECRET_KEY=$AGENT_BACKEND_SECRET_KEY
 EOF
 
     chmod 600 "$env_file"

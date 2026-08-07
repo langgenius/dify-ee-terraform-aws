@@ -238,6 +238,12 @@ resource "aws_eks_node_group" "main" {
   node_role_arn   = aws_iam_role.eks_node_group.arn
   subnet_ids      = local.node_subnets
 
+  # Pin the node AMI Kubernetes version to the control plane version so
+  # cluster upgrades also roll the nodes (otherwise nodes silently stay on
+  # the version the group was created with, drifting toward the kubelet
+  # n-3 skew limit).
+  version = var.cluster_version
+
   scaling_config {
     desired_size = local.node_config.desired_size
     max_size     = local.node_config.max_size
@@ -273,37 +279,10 @@ resource "aws_eks_node_group" "main" {
   )
 }
 
-# ──────────────── Dynamic Tag Management ────────────────
-# Add Kubernetes cluster tags to VPC resources after EKS cluster is created
-# Note: These tags are only applied when creating a new VPC (use_existing_vpc = false)
-# For existing VPC, tags are managed in vpc.tf and controlled by auto_tag_subnets variable
-
-# Tag VPC with cluster information (only if VPC is created by this module)
-resource "aws_ec2_tag" "vpc_cluster_tag" {
-  count       = local.create_vpc ? 1 : 0
-  resource_id = local.create_vpc ? aws_vpc.main[0].id : ""
-  key         = "kubernetes.io/cluster/${local.cluster_name}"
-  value       = "shared"
-
-  depends_on = [aws_eks_cluster.main]
-}
-
-# Tag public subnets with cluster information
-resource "aws_ec2_tag" "public_subnet_cluster_tags" {
-  count       = local.create_vpc ? length(local.availability_zones) : 0
-  resource_id = local.create_vpc ? aws_subnet.public[count.index].id : ""
-  key         = "kubernetes.io/cluster/${local.cluster_name}"
-  value       = "shared"
-
-  depends_on = [aws_eks_cluster.main]
-}
-
-# Tag private subnets with cluster information
-resource "aws_ec2_tag" "private_subnet_cluster_tags" {
-  count       = local.create_vpc ? length(local.availability_zones) : 0
-  resource_id = local.create_vpc ? aws_subnet.private[count.index].id : ""
-  key         = "kubernetes.io/cluster/${local.cluster_name}"
-  value       = "shared"
-
-  depends_on = [aws_eks_cluster.main]
-}
+# ──────────────── Cluster tags on module-created VPC resources ────────────────
+# The kubernetes.io/cluster/<name> = "shared" tag for the module-created VPC and
+# subnets is set INLINE in vpc.tf (aws_vpc.main / aws_subnet.public|private.tags).
+# It must not also be managed here via aws_ec2_tag: two owners of the same tag key
+# make every plan flap (aws_ec2_tag re-adds it, the inline tags strip it).
+# For an existing VPC (use_existing_vpc = true), tags are managed in vpc.tf via
+# aws_ec2_tag.existing_* and controlled by the auto_tag_subnets variable.
