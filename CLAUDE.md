@@ -103,7 +103,7 @@ aws eks describe-cluster --name <cluster-name>
 
 The infrastructure consists of several layers:
 
-1. **Networking Layer**: VPC with public/private subnets across 3 AZs (auto-detected), NAT Gateway, Internet Gateway
+1. **Networking Layer**: VPC with public/private subnets across 3 AZs (auto-detected), NAT Gateway (zonal or regional, see below), Internet Gateway
 2. **Compute Layer**: EKS cluster with managed node groups (supports both amd64 and arm64 architectures)
 3. **Data Layer**: Aurora PostgreSQL Serverless v2, ElastiCache Redis, OpenSearch
 4. **Storage Layer**: S3 buckets for object storage, ECR repositories for container images
@@ -184,6 +184,22 @@ Two modes supported:
    }
    auto_tag_subnets = true  # Auto-tag subnets with Kubernetes tags
    ```
+
+#### NAT Gateway Availability Mode
+
+Only applies when creating a new VPC (`use_existing_vpc = false`). All Dify outbound traffic (LLM provider APIs, plugin marketplace, license server) egresses through the NAT Gateway.
+
+```hcl
+nat_availability_mode = "zonal"     # default — single NAT Gateway in one AZ (aws_nat_gateway.main + aws_eip.nat)
+nat_availability_mode = "regional"  # Regional NAT Gateway (aws_nat_gateway.regional), multi-AZ, AWS-managed EIPs
+```
+
+- `zonal`: lowest cost, but the NAT's AZ is a single point of failure for all egress.
+- `regional`: AWS auto-expands/contracts the gateway across AZs following workload ENIs. No public subnet or EIP management; `aws_eip.nat` is not created. Recommended for `environment = "prod"`.
+- Both modes expose one NAT Gateway ID via `local.nat_gateway_id`, so the private route table wiring is identical.
+- **China regions**: Regional NAT Gateway is unavailable in the `aws-cn` partition, so `local.nat_availability_mode` forces `zonal` when `local.aws_is_cn_region` is true.
+- **Egress IP allowlisting**: use the `nat_gateway_public_ips` output — it is a list, and regional mode returns one address per active AZ.
+- Switching modes on a live deployment replaces the NAT Gateway and resets existing connections; schedule a maintenance window.
 
 **Critical**: When using existing VPC with `auto_tag_subnets = false`, manually add these tags:
 - VPC: `kubernetes.io/cluster/dify-{deployment_id}-eks-cluster = shared`

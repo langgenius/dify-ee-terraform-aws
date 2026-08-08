@@ -2,6 +2,11 @@ locals {
   create_vpc = !var.use_existing_vpc
   vpc_id     = local.create_vpc ? aws_vpc.main[0].id : var.vpc_id
 
+  # Regional NAT Gateway is not available in the AWS China partition, so fall back to zonal there.
+  nat_availability_mode = local.aws_is_cn_region ? "zonal" : var.nat_availability_mode
+  create_zonal_nat      = local.create_vpc && local.nat_availability_mode == "zonal"
+  create_regional_nat   = local.create_vpc && local.nat_availability_mode == "regional"
+
   # Automatically fetch the first 3 available zones from the current region
   availability_zones = slice(data.aws_availability_zones.available.names, 0, 3)
 
@@ -76,9 +81,14 @@ resource "aws_subnet" "private" {
   }
 }
 
-# NAT Gateway (single, shared by all private subnets)
+# NAT Gateway
+# Two availability modes, selected by var.nat_availability_mode:
+#   - zonal    (default): one NAT Gateway in the first public subnet, shared by all private subnets.
+#                         Cheapest, but outbound traffic is a single-AZ SPOF.
+#   - regional          : one Regional NAT Gateway that AWS spreads across AZs automatically,
+#                         following workload ENIs. No public subnet or EIP to manage.
 resource "aws_eip" "nat" {
-  count  = local.create_vpc ? 1 : 0
+  count  = local.create_zonal_nat ? 1 : 0
   domain = "vpc"
 
   tags = {
@@ -88,7 +98,7 @@ resource "aws_eip" "nat" {
 }
 
 resource "aws_nat_gateway" "main" {
-  count         = local.create_vpc ? 1 : 0
+  count         = local.create_zonal_nat ? 1 : 0
   allocation_id = aws_eip.nat[0].id
   subnet_id     = aws_subnet.public[0].id # Use the first public subnet
 
@@ -98,6 +108,29 @@ resource "aws_nat_gateway" "main" {
   }
 
   depends_on = [aws_internet_gateway.main]
+}
+
+# Regional NAT Gateway (automatic mode: AWS manages zonal expansion and the EIPs)
+resource "aws_nat_gateway" "regional" {
+  count             = local.create_regional_nat ? 1 : 0
+  vpc_id            = aws_vpc.main[0].id
+  availability_mode = "regional"
+
+  tags = {
+    Name        = "dify-${var.deployment_id}-nat-regional"
+    Environment = var.environment
+  }
+
+  depends_on = [aws_internet_gateway.main]
+}
+
+locals {
+  # Single NAT Gateway ID regardless of availability mode; null when using an existing VPC.
+  nat_gateway_id = (
+    local.create_regional_nat ? aws_nat_gateway.regional[0].id :
+    local.create_zonal_nat ? aws_nat_gateway.main[0].id :
+    null
+  )
 }
 
 # Route Tables
@@ -120,9 +153,10 @@ resource "aws_route_table" "private" {
   count  = local.create_vpc ? 1 : 0
   vpc_id = aws_vpc.main[0].id
 
+  # Both modes expose a single NAT Gateway ID, so the route wiring is identical.
   route {
     cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.main[0].id
+    nat_gateway_id = local.nat_gateway_id
   }
 
   tags = {

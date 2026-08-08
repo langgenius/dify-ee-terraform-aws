@@ -219,6 +219,25 @@ output "public_subnet_ids" {
   value       = local.create_vpc ? aws_subnet.public[*].id : []
 }
 
+output "nat_availability_mode" {
+  description = "Effective NAT Gateway availability mode ('zonal' or 'regional'); null when using an existing VPC"
+  value       = local.create_vpc ? local.nat_availability_mode : null
+}
+
+output "nat_gateway_id" {
+  description = "NAT Gateway ID used by the private route table; null when using an existing VPC"
+  value       = local.nat_gateway_id
+}
+
+output "nat_gateway_public_ips" {
+  description = "Public IPs of the NAT Gateway. Zonal mode returns a single EIP; regional mode returns one address per active AZ (allowlist all of them upstream)."
+  value = (
+    local.create_regional_nat ? [for a in tolist(aws_nat_gateway.regional[0].regional_nat_gateway_address) : a.public_ip] :
+    local.create_zonal_nat ? [aws_eip.nat[0].public_ip] :
+    []
+  )
+}
+
 # ──────────────── Autoscaling Status ────────────────
 output "autoscaling_status" {
   description = "Status of autoscaling components (Metrics Server, Cluster Autoscaler, HPA)"
