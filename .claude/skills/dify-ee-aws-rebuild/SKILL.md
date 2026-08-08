@@ -180,11 +180,23 @@ helm uninstall dify -n dify
 ```bash
 BUCKET=dify-<deployment_id>-storage
 
+# CHECK EMPTINESS FIRST. On an empty bucket the JMESPath below yields null,
+# the python parse fails, count never becomes "0", and the loop spins forever
+# (burned us on 2026-08-07: a fresh deploy's bucket had zero objects).
+aws s3api list-object-versions --bucket "$BUCKET" \
+  --query '[length(Versions||`[]`), length(DeleteMarkers||`[]`)]' --output json
+# [0, 0] -> bucket already empty, skip the loop entirely.
+
 while :; do
   payload=$(aws s3api list-object-versions --bucket "$BUCKET" --max-items 1000 \
     --query '{Objects: (Versions[] | [].{Key: Key, VersionId: VersionId])[] + (DeleteMarkers[] | [].{Key: Key, VersionId: VersionId])[]}' \
     --output json 2>/dev/null)
-  count=$(echo "$payload" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(len(d.get("Objects") or []))')
+  count=$(echo "$payload" | python3 -c 'import json,sys
+try:
+    d=json.load(sys.stdin)
+    print(len((d or {}).get("Objects") or []))
+except Exception:
+    print(0)')
   [ "$count" = "0" ] && break
   aws s3api delete-objects --bucket "$BUCKET" --delete "$payload" >/dev/null
   echo "deleted $count"
@@ -251,6 +263,20 @@ aws ec2 describe-vpcs --region "$REGION" \
 # (c) Unattached EIPs (NAT gateway leaks)
 aws ec2 describe-addresses --region "$REGION" \
   --query 'Addresses[?AssociationId==null].{AllocationId:AllocationId,Tag:Tags[?Key==`Name`].Value|[0]}'
+
+# (d) CloudWatch log groups — EKS creates /aws/eks/<cluster>/cluster OUTSIDE tf
+# (never-expiring by default; the audit stream alone is >1 GB/day). tf now
+# pre-creates it with retention, but EKS can flush final logs after destroy
+# and re-create a small orphan — always check.
+aws logs describe-log-groups --region "$REGION" \
+  --log-group-name-prefix "/aws/eks/dify-${DEP_ID}" \
+  --query 'logGroups[].{n:logGroupName,bytes:storedBytes}'
+
+# (e) Orphan EBS volumes/snapshots from dynamically-provisioned PVs
+aws ec2 describe-volumes --region "$REGION" \
+  --query "Volumes[?State=='available'].{id:VolumeId,size:Size,tags:Tags}"
+aws ec2 describe-snapshots --region "$REGION" --owner-ids "$(aws sts get-caller-identity --query Account --output text)" \
+  --query "Snapshots[?contains(to_string(Tags||\`[]\`),'${DEP_ID}')].SnapshotId"
 ```
 
 **Always show the user the orphan list and ask before deleting.** Substring grep across multiple deployments has burned us — `dify-severn-vpc-eip-us-east-2a` once nearly got deleted because it matched a `*riino*` substring fluke. Filter by full deployment_id token, not substring.

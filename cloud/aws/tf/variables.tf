@@ -157,6 +157,16 @@ variable "cluster_version" {
   default     = "1.36"
 }
 
+variable "eks_log_retention_days" {
+  description = "Retention in days for the EKS control-plane CloudWatch log group (/aws/eks/<cluster>/cluster). The audit stream alone can produce >1 GB/day even on an idle cluster."
+  type        = number
+  default     = 30
+  validation {
+    condition     = contains([0, 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.eks_log_retention_days)
+    error_message = "eks_log_retention_days must be a CloudWatch-supported retention value (0 = never expire)."
+  }
+}
+
 variable "eks_arch" {
   description = "EKS worker node architecture. Allowed values: 'amd64' or 'arm64'"
   type        = string

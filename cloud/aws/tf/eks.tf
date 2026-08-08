@@ -100,6 +100,21 @@ resource "aws_kms_alias" "eks_secrets" {
   target_key_id = aws_kms_key.eks_secrets.key_id
 }
 
+# Control-plane log group, pre-created so Terraform owns it.
+# When enabled_cluster_log_types is set, EKS auto-creates
+# /aws/eks/<cluster>/cluster OUTSIDE Terraform on first log delivery —
+# never-expiring retention, survives terraform destroy, bills silently.
+# Creating it here first (EKS reuses an existing group) puts it in state:
+# retention is enforced and destroy removes it. The cluster resource must
+# depend on it, or EKS wins the race and creates its own.
+# Destroy caveat: TF deletes this group before the cluster finishes deleting;
+# EKS may flush final control-plane logs afterward and re-create a small
+# orphan group — the teardown orphan scan (SKILL.md B.5) still checks for it.
+resource "aws_cloudwatch_log_group" "eks_cluster" {
+  name              = "/aws/eks/${local.cluster_name}/cluster"
+  retention_in_days = var.eks_log_retention_days
+}
+
 # EKS Cluster
 # tfsec:ignore:aws-eks-no-public-cluster-access -- public endpoint is gated on elb_mode == "internet-facing"
 # tfsec:ignore:aws-eks-no-public-cluster-access-to-cidr -- public_access_cidrs tightening tracked separately; default allow is intentional in internet-facing mode
@@ -109,7 +124,6 @@ resource "aws_eks_cluster" "main" {
   version  = var.cluster_version
 
   enabled_cluster_log_types = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
-
   encryption_config {
     provider {
       key_arn = aws_kms_key.eks_secrets.arn
@@ -128,7 +142,10 @@ resource "aws_eks_cluster" "main" {
   }
 
   depends_on = [
-    aws_iam_role_policy_attachment.eks_cluster_policy
+    aws_iam_role_policy_attachment.eks_cluster_policy,
+    # Log group must exist before EKS starts logging, or EKS creates its own
+    # unmanaged /aws/eks/<cluster>/cluster group (see aws_cloudwatch_log_group above).
+    aws_cloudwatch_log_group.eks_cluster,
   ]
 
   tags = {
