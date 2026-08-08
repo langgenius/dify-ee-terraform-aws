@@ -2,10 +2,12 @@ locals {
   create_vpc = !var.use_existing_vpc
   vpc_id     = local.create_vpc ? aws_vpc.main[0].id : var.vpc_id
 
-  # Regional NAT Gateway is not available in the AWS China partition, so fall back to zonal there.
-  nat_availability_mode = local.aws_is_cn_region ? "zonal" : var.nat_availability_mode
-  create_zonal_nat      = local.create_vpc && local.nat_availability_mode == "zonal"
-  create_regional_nat   = local.create_vpc && local.nat_availability_mode == "regional"
+  # Regional NAT Gateway is available in commercial regions only — AWS GovCloud (US) and
+  # China regions are excluded, so fall back to zonal there instead of failing at apply.
+  nat_regional_supported = !local.aws_is_cn_region && !local.aws_is_gov_region
+  nat_availability_mode  = local.nat_regional_supported ? var.nat_availability_mode : "zonal"
+  create_zonal_nat       = local.create_vpc && local.nat_availability_mode == "zonal"
+  create_regional_nat    = local.create_vpc && local.nat_availability_mode == "regional"
 
   # Automatically fetch the first 3 available zones from the current region
   availability_zones = slice(data.aws_availability_zones.available.names, 0, 3)

@@ -230,7 +230,7 @@ output "nat_gateway_id" {
 }
 
 output "nat_gateway_public_ips" {
-  description = "Public IPs of the NAT Gateway. Zonal mode returns a single EIP; regional mode returns one address per active AZ (allowlist all of them upstream)."
+  description = "Public IPs of the NAT Gateway, read from Terraform state. Zonal mode returns a single stable EIP. Regional mode returns every address AWS had allocated at the last refresh (up to 32 per AZ, and the set changes as AWS expands/contracts across AZs) — run 'terraform apply -refresh-only' first, and prefer describe-nat-gateways for a live allowlist. See DOC:REGIONAL_NAT_GATEWAY.md."
   value = (
     local.create_regional_nat ? [for a in tolist(aws_nat_gateway.regional[0].regional_nat_gateway_address) : a.public_ip] :
     local.create_zonal_nat ? [aws_eip.nat[0].public_ip] :

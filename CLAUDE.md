@@ -197,8 +197,9 @@ nat_availability_mode = "regional"  # Regional NAT Gateway (aws_nat_gateway.regi
 - `zonal`: lowest cost, but the NAT's AZ is a single point of failure for all egress.
 - `regional`: AWS auto-expands/contracts the gateway across AZs following workload ENIs. No public subnet or EIP management; `aws_eip.nat` is not created. Recommended for `environment = "prod"`.
 - Both modes expose one NAT Gateway ID via `local.nat_gateway_id`, so the private route table wiring is identical.
-- **China regions**: Regional NAT Gateway is unavailable in the `aws-cn` partition, so `local.nat_availability_mode` forces `zonal` when `local.aws_is_cn_region` is true.
-- **Egress IP allowlisting**: use the `nat_gateway_public_ips` output — it is a list, and regional mode returns one address per active AZ.
+- **Provider floor**: requires AWS provider `>= 6.24.0`, which introduced `availability_mode` / `vpc_id` / `regional_nat_gateway_address` on `aws_nat_gateway`. Terraform parses these arguments even when `count = 0`, so older 6.x versions fail at `terraform validate` regardless of the selected mode.
+- **Unsupported partitions**: Regional NAT Gateway is commercial-regions-only. `local.nat_availability_mode` forces `zonal` when `local.aws_is_cn_region` or `local.aws_is_gov_region` is true.
+- **Egress IP allowlisting**: `nat_gateway_public_ips` is a list read from state. Regional mode holds up to 32 IPs per AZ and changes the set as it expands (up to 60 min after a new AZ gets an ENI), so state can be stale — refresh first, or query `aws ec2 describe-nat-gateways` for a live view. Fixed-allowlist requirements should stay on `zonal`.
 - Switching modes on a live deployment replaces the NAT Gateway and resets existing connections; schedule a maintenance window.
 
 **Critical**: When using existing VPC with `auto_tag_subnets = false`, manually add these tags:

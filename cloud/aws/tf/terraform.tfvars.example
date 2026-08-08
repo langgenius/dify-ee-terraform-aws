@@ -106,10 +106,14 @@ nat_availability_mode = "zonal"  # Options: "zonal" | "regional"
 #                  Recommended for environment = "prod".
 #
 # Notes:
+# ✓ Requires AWS provider >= 6.24.0 (already enforced in providers.tf).
 # ✓ Regional mode manages its own Elastic IPs; the aws_eip.nat resource is not created.
-#   Use the `nat_gateway_public_ips` output (a list) when allowlisting egress IPs upstream.
-# ✓ AWS China regions (cn-*) do not offer Regional NAT Gateway; the value is forced to
-#   "zonal" there automatically, so setting "regional" is safe but has no effect.
+#   AWS may hold up to 32 IPs per AZ and adds/removes them as it expands across AZs,
+#   so the egress IP set is NOT stable. If a third party needs a fixed allowlist,
+#   stay on "zonal". See changelog-2026-08-08-regional-nat-gateway/DOC:*.md.
+# ✓ Regional NAT Gateway is a commercial-region feature. In AWS China (cn-*) and
+#   GovCloud (us-gov-*) regions the value is forced to "zonal" automatically, so
+#   setting "regional" there is safe but has no effect.
 # ✓ Switching modes on an existing deployment replaces the NAT Gateway and resets
 #   in-flight connections. Do it in a maintenance window.
 
