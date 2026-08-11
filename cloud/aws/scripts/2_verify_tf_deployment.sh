@@ -403,20 +403,11 @@ verify_kubernetes() {
 generate_report() {
     log_info "Generating verification report..."
     
-    # Determine the correct path for the secret directory
-    local secret_dir=""
-    if [ -d "../secret" ]; then
-        secret_dir="../secret"
-    elif [ -d "./secret" ]; then
-        secret_dir="./secret"
-    elif [ -d "../../secret" ]; then
-        secret_dir="../../secret"
-    else
-        # Create secret directory if it doesn't exist
-        secret_dir="../secret"
-        mkdir -p "$secret_dir"
-        log_info "Created secret directory: $secret_dir"
-    fi
+    # Secret dir anchored to the script location (= cloud/aws/secret) so the
+    # report always lands inside the gitignored path, regardless of caller cwd.
+    local secret_dir
+    secret_dir="$(cd "$(dirname "$0")/.." && pwd)/secret"
+    mkdir -p "$secret_dir"
     
     local report_file="$secret_dir/deployment_verification_$(date +%Y%m%d_%H%M%S).txt"
     
@@ -452,6 +443,7 @@ AWS region: $AWS_REGION
 - Regularly backup important data
 EOF
     
+    chmod 600 "$report_file"
     log_success "Verification report generated: $report_file"
 }
 
