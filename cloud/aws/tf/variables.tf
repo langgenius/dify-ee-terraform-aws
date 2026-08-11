@@ -625,6 +625,12 @@ variable "hpa_config" {
       min_replicas           = 1
       max_replicas           = 10
       target_cpu_utilization = 80
+      # Sandbox pods report Ready before their python-dependency init finishes and
+      # burn ~1 CPU against a 100m request for 2-4 min. With a 0s window this
+      # self-inflicted burn snowballs to maxReplicas on every install/rollout/node
+      # eviction and oscillates with cluster-autoscaler (observed: 130+ rescales
+      # in 19h). 300s outlasts the init burn; tradeoff: real bursts wait up to 300s.
+      scale_up_stabilization_window = 300
     }
     enterprise = {
       enabled                = false
