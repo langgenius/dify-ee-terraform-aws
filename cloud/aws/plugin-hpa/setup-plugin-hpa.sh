@@ -28,7 +28,8 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-OUTPUT_FILE="$SCRIPT_DIR/plugin-hpa-generated.yaml"
+SECRET_DIR="$(cd "$SCRIPT_DIR/.." && pwd)/secret"
+OUTPUT_FILE="$SECRET_DIR/plugin-hpa-generated.yaml"
 CRD_NAME="difyplugins.enterprise.dify.ai"
 MANAGED_BY_LABEL="app.kubernetes.io/managed-by=dify-plugin-hpa"
 
@@ -257,7 +258,9 @@ confirm "Proceed?" || { info "Aborted."; exit 0; }
 # ============================================================
 # Generate YAML
 # ============================================================
+mkdir -p "$SECRET_DIR"
 : > "$OUTPUT_FILE"
+chmod 600 "$OUTPUT_FILE"
 for plugin in "${PLUGINS[@]}"; do
   cat >> "$OUTPUT_FILE" <<ENDOFYAML
 ---
@@ -485,7 +488,7 @@ spec:
                   echo "Done (created=\$created pruned=\$pruned)"
 ENDOFYAML
 fi
-ok "Generated $OUTPUT_FILE"
+ok "Generated manifest written to: $OUTPUT_FILE"
 
 if $DRY_RUN; then
   info "--dry-run: not applying. Review the file and apply with: kubectl apply -f $OUTPUT_FILE"

@@ -121,5 +121,5 @@ kubectl get cronjob plugin-hpa-syncer -n dify        # 若使用了 --auto-cover
 | 文件 | 用途 |
 |---|---|
 | `setup-plugin-hpa.sh` | 本安装脚本 |
-| `plugin-hpa-generated.yaml` | 生成的 HPA（+ syncer）YAML —— 自动生成、已 gitignore，勿手动编辑 |
+| `../secret/plugin-hpa-generated.yaml` | 生成的 HPA（+ syncer）YAML —— 自动生成（600 权限，`secret/` 已 gitignore），勿手动编辑 |
 | `plugin-autoscaler-README-CN.md` | CronJob 暂行方案文档（Chart < 3.10.0） |

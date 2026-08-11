@@ -23,6 +23,16 @@ The two scenarios share zero commands. Don't conflate them.
 # Verify creds + region match tfvars.
 aws sts get-caller-identity
 grep -E "^(deployment_id|aws_region|aws_account_id|environment)" tf/terraform.tfvars
+
+# Scenario A: also confirm the TF-owned control-plane log group isn't lingering
+# from an old teardown (EKS can flush final logs post-destroy and re-create it).
+# Any hit here → delete it (or terraform import it) BEFORE apply, or apply dies
+# with ResourceAlreadyExistsException on aws_cloudwatch_log_group.eks_cluster.
+# Pin --region to tfvars — a differing default CLI region would false-pass this check.
+aws logs describe-log-groups \
+  --region "$(awk -F'"' '/^aws_region/{print $2}' tf/terraform.tfvars)" \
+  --log-group-name-prefix "/aws/eks/dify-$(awk -F'"' '/^deployment_id/{print $2}' tf/terraform.tfvars)-" \
+  --query 'logGroups[].logGroupName'
 ```
 
 If `aws sts` returns the wrong account or `aws_region` in tfvars doesn't match the user's intent, **stop** and surface that to the user before running anything destructive.
@@ -50,6 +60,31 @@ Expect ~94 resources created on first apply. **Two transient errors are normal a
 
 If you see those: just `terraform apply -auto-approve` again with no flags. The remaining ~12 K8s/Helm resources finish cleanly.
 
+**If the chart EOF does NOT self-heal** (repeated failures AND `curl -sI https://github.com` also dies — e.g. a fake-ip VPN whose github.com route is down; `dig github.com` returning `198.18.x.x` confirms DNS interception): build a local chart mirror and override the repo vars — both are already variables (`metrics_server_chart_repo` / `cluster_autoscaler_chart_repo`, originally for AWS China). Validated on the 2026-08-10 rebuild:
+
+```bash
+# 1. api.github.com is often reachable when github.com isn't (redirects to codeload):
+curl -sL -o /tmp/ms.tar.gz https://api.github.com/repos/kubernetes-sigs/metrics-server/tarball/metrics-server-helm-chart-<ver>
+curl -sL -o /tmp/as.tar.gz https://api.github.com/repos/kubernetes/autoscaler/tarball/cluster-autoscaler-chart-<ver>
+# Chart dirs inside the tarballs: charts/metrics-server and
+# cluster-autoscaler/charts/cluster-autoscaler (NOT top-level charts/).
+# Verify Chart.yaml `version:` matches the tf-pinned chart version.
+
+# 2. helm package both dirs into /tmp/dify-charts, then serve as a repo:
+helm repo index /tmp/dify-charts --url http://127.0.0.1:8879
+python3 -m http.server 8879 --directory /tmp/dify-charts --bind 127.0.0.1 &
+
+# 3. Repository MUST be an HTTP URL — a bare local path fails with
+# "could not find protocol handler":
+terraform apply -auto-approve \
+  -var metrics_server_chart_repo=http://127.0.0.1:8879 \
+  -var cluster_autoscaler_chart_repo=http://127.0.0.1:8879
+```
+
+Residue: state then records `repository = localhost` for those two releases; once GitHub is reachable, a plain `terraform apply` points them back at the defaults.
+
+A third error through flaky tunnels: `failed to download openapi ... Client.Timeout` from the helm provider **while kubectl itself is fast** (`time kubectl get --raw /openapi/v2 | wc -c` jitters 2s–22s). Pure throughput lottery — loop `terraform apply` until it lands.
+
 For background runs, monitor with:
 ```bash
 terraform apply -auto-approve tfplan > /tmp/tf_apply.log 2>&1
@@ -61,6 +96,7 @@ The big-rock resources to watch: `aws_rds_cluster.main`, `aws_rds_cluster_instan
 ## A.2 — Project scripts (2 → 3 → 4)
 
 ```bash
+cd ..                                     # back to cloud/aws/ — A.1 left the shell in tf/
 bash scripts/2_verify_tf_deployment.sh    # generates secret/deployment_verification_*.txt
 bash scripts/3_post_tf_apply.sh           # generates secret/config_*.env, dify_deployment_config_*.txt, out_*.log
 bash scripts/4_generate_dify_helm.sh      # generates secret/helm_values_<ts>/values.{quick-poc,test,prod}_*.yaml
@@ -71,6 +107,7 @@ bash scripts/4_generate_dify_helm.sh      # generates secret/helm_values_<ts>/va
 **Pitfalls in script 4:**
 - Watchdog stage fetches image tags from `helm-watchdog.dify.ai`. Sometimes returns SSL/EOF errors. The values files are written **before** the watchdog stage, so a watchdog failure doesn't prevent install — image tags just fall back to chart defaults. Re-run if you need exact pinning.
 - The version-pick menu and cert-selection step are interactive. With no TTY (`</dev/null`), the version menu auto-picks the highlighted top option (latest, usually correct) — but the cert step won't run. **`{{cert_uuid}}` then stays literal in the ingress annotation, ALB rejects with `no certificate found for host: ...`**. If you need HTTPS, run script 4 with a real TTY and pick a cert; if not, post-edit the values to drop the `alb.ingress.kubernetes.io/certificate-arn` annotation and set `useTLS: false`.
+- All three interactive prompts (env file → cert → watchdog version) are arrow-key menus; driving them through a PTY works fine: newest env file is the top option, watchdog's top option is the latest chart version. Validated on the 2026-08-10 3.12.0 test-profile deploy.
 
 ## A.3 — Helm install
 
@@ -78,7 +115,7 @@ bash scripts/4_generate_dify_helm.sh      # generates secret/helm_values_<ts>/va
 helm repo add dify https://langgenius.github.io/dify-helm 2>/dev/null
 helm repo update dify
 
-CANDIDATE=3.9.1                                                    # pin explicitly
+CANDIDATE=3.12.0                                                   # pin explicitly (3.9.1 and 3.12.0 validated end-to-end)
 PROFILE=quick-poc                                                  # or test / prod
 VALUES=$(ls -t secret/helm_values_*/values.${PROFILE}_*.yaml | head -1)
 helm upgrade -i dify -f "$VALUES" dify/dify --version "$CANDIDATE" -n dify
@@ -97,6 +134,10 @@ kubectl get pods -n dify
 A clean quick-poc deploy on chart 3.9.1 settles at **16 pods × 1/1 Running** in ~2-3 min. The slow ones:
 - `dify-unstructured` — ~800MB image, ~30-60s to pull
 - `dify-api` — flips through `0/1 Running` for ~1 min while in-pod DB migration runs (probe `initialDelaySeconds=120/300` is **intentional** in 3.9.x; do not panic)
+
+A test-profile deploy on chart 3.12.0 settles at ~33 pods `1/1` in ~3 min (HPA replica counts make the total vary). Two benign first-boot artifacts (2026-08-10 run):
+- `dify-enterprise-collector` may restart once before stabilizing.
+- `dify-sandbox` HPA can burst toward maxReplicas right after install: sandbox pods report Ready before their python-dependency init finishes, then each new pod burns ~1 CPU against a 100m request, so utilization stays above target until init completes; replicas then drain back through the 300s scale-down window. `terraform.tfvars.example` now ships `hpa_config.sandbox.scale_up_stabilization_window = 300` to suppress this (early pods go idle inside the window, vetoing further scale-up — at the cost of real bursts also waiting up to 300s). A tfvars written before that change (window 0) will still show the burst; it self-heals in ~5-10 min. Root cause is chart-side readiness timing.
 
 For autonomous monitoring, an until-loop works well:
 ```bash
@@ -145,6 +186,16 @@ kubectl get ingress -n dify
 
 A pod running as `default` SA where the chart docs say a named SA should be → file the gap (most likely the chart added a new deployment whose `serviceAccountName` we haven't wired up in `values.yaml`). See **Past mismatches catalog** below for the recurring ones.
 
+## A.6 — Point DNS at the new ALB
+
+Every rebuild creates a **new** ALB hostname — external DNS records still alias the destroyed one. `kubectl get ingress -n dify` gives the new address. If the domain's zone is NOT in this account's Route53 (`aws route53 list-hosted-zones`), the CNAMEs must be updated at the external DNS provider — nothing in tf or the scripts does this. Until DNS propagates, smoke test the ALB directly:
+
+```bash
+ALB=$(kubectl get ingress dify-ingress -n dify -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+curl -s -o /dev/null -w "%{http_code}\n" -H "Host: console.<domain>" "http://$ALB/"   # expect 301 (ssl-redirect)
+curl -s -o /dev/null -w "%{http_code}\n" --resolve "api.<domain>:443:$(dig +short "$ALB" | head -1)" "https://api.<domain>/"  # expect 200 with valid TLS
+```
+
 ---
 
 # SCENARIO B — Tear down completely
@@ -187,19 +238,20 @@ aws s3api list-object-versions --bucket "$BUCKET" \
   --query '[length(Versions||`[]`), length(DeleteMarkers||`[]`)]' --output json
 # [0, 0] -> bucket already empty, skip the loop entirely.
 
+# NOTE: merge Versions + DeleteMarkers in Python — JMESPath has no `+` array
+# concatenation, and a silently failing --query would end this loop with the
+# bucket still full.
 while :; do
   payload=$(aws s3api list-object-versions --bucket "$BUCKET" --max-items 1000 \
-    --query '{Objects: (Versions[] | [].{Key: Key, VersionId: VersionId])[] + (DeleteMarkers[] | [].{Key: Key, VersionId: VersionId])[]}' \
-    --output json 2>/dev/null)
-  count=$(echo "$payload" | python3 -c 'import json,sys
-try:
-    d=json.load(sys.stdin)
-    print(len((d or {}).get("Objects") or []))
-except Exception:
-    print(0)')
-  [ "$count" = "0" ] && break
+    --output json | python3 -c 'import json,sys
+raw = sys.stdin.read()
+d = json.loads(raw) if raw.strip() else {}
+objs = [{"Key": o["Key"], "VersionId": o["VersionId"]}
+        for k in ("Versions", "DeleteMarkers") for o in d.get(k) or []]
+print(json.dumps({"Objects": objs}) if objs else "")')
+  [ -z "$payload" ] && break
   aws s3api delete-objects --bucket "$BUCKET" --delete "$payload" >/dev/null
-  echo "deleted $count"
+  echo "deleted $(printf %s "$payload" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)["Objects"]))')"
 done
 ```
 

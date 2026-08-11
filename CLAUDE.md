@@ -211,6 +211,16 @@ Node configuration automatically selects based on `environment` and `eks_arch`:
 - arm64: 6-10 nodes of m7g.2xlarge (8 vCPU, 32GB RAM)
 - Redis: Master-replica, automatic failover, Multi-AZ
 
+### EKS Control-Plane Logs
+
+All five control-plane log streams go to CloudWatch. The log group `/aws/eks/dify-{deployment_id}-eks-cluster/cluster` is pre-created by Terraform (`aws_cloudwatch_log_group.eks_cluster`) so retention (`eks_log_retention_days`, default 30 days) is enforced and `terraform destroy` reclaims it — otherwise EKS auto-creates it with never-expiring retention (the audit stream alone can exceed 1 GB/day idle).
+
+**Upgrading an existing deployment**: the group already exists outside Terraform state, so the first `apply` fails with `ResourceAlreadyExistsException`. Import it first:
+
+```bash
+terraform import aws_cloudwatch_log_group.eks_cluster /aws/eks/dify-<deployment_id>-eks-cluster/cluster
+```
+
 ### AWS China Region Specifics
 
 1. **Instance Types**: Use m6i/m6a (amd64) or m6g (arm64) instead of m7 series

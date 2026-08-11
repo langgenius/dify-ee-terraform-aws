@@ -11,6 +11,13 @@ aws_account_id = "123456789012"  # Please modify to your actual AWS Account ID
 cluster_version = "1.36"
 eks_arch       = "amd64"  # Options: amd64 or arm64
 
+# Retention (days) for the EKS control-plane CloudWatch log group /aws/eks/<cluster>/cluster.
+# The audit stream alone can exceed 1 GB/day even on an idle cluster; 0 = never expire.
+# NOTE (upgrading an existing deployment): EKS auto-created this group outside Terraform,
+# so the first apply fails with ResourceAlreadyExistsException. Adopt it first:
+#   terraform import aws_cloudwatch_log_group.eks_cluster /aws/eks/dify-<deployment_id>-eks-cluster/cluster
+eks_log_retention_days = 30
+
 # EKS node disk configuration
 eks_node_disk_size_test = 40  # Test environment node disk size in GB
 eks_node_disk_size_prod = 20  # Production environment node disk size in GB
@@ -223,10 +230,17 @@ hpa_config = {
     target_cpu_utilization = 70
   }
   sandbox = {
-    enabled                = true
-    min_replicas           = 1
-    max_replicas           = 10
-    target_cpu_utilization = 80
+    enabled                       = true
+    min_replicas                  = 1
+    max_replicas                  = 10
+    target_cpu_utilization        = 80
+    # Sandbox pods report Ready BEFORE their python-dependency init finishes, then
+    # burn ~1 CPU (vs a 100m request) for 2-4 min. With the default 0s window that
+    # self-inflicted burn snowballs to maxReplicas on every install/rollout: each
+    # new pod burns too, keeping utilization above target. 300s covers the init
+    # burn (early pods go idle inside the window, which vetoes further scale-up).
+    # Tradeoff: genuine load bursts also wait up to 300s before adding pods.
+    scale_up_stabilization_window = 300
   }
   # Enterprise components (disabled by default)
   enterprise = {

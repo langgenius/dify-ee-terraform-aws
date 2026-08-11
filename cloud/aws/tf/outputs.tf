@@ -40,6 +40,11 @@ output "eks_cluster_security_group_id" {
   value       = aws_eks_cluster.main.vpc_config[0].cluster_security_group_id
 }
 
+output "eks_cluster_log_group_name" {
+  description = "Terraform-managed CloudWatch log group for EKS control-plane logs (retention = eks_log_retention_days)"
+  value       = aws_cloudwatch_log_group.eks_cluster.name
+}
+
 output "ecr_repository_url" {
   description = "ECR repository URL"
   value       = aws_ecr_repository.dify.repository_url

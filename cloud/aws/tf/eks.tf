@@ -110,9 +110,18 @@ resource "aws_kms_alias" "eks_secrets" {
 # Destroy caveat: TF deletes this group before the cluster finishes deleting;
 # EKS may flush final control-plane logs afterward and re-create a small
 # orphan group — the teardown orphan scan (SKILL.md B.5) still checks for it.
+# Upgrading an EXISTING deployment: EKS already auto-created this group outside
+# Terraform, so the first apply fails with ResourceAlreadyExistsException.
+# Adopt it first:
+#   terraform import aws_cloudwatch_log_group.eks_cluster /aws/eks/dify-<deployment_id>-eks-cluster/cluster
 resource "aws_cloudwatch_log_group" "eks_cluster" {
   name              = "/aws/eks/${local.cluster_name}/cluster"
   retention_in_days = var.eks_log_retention_days
+
+  tags = {
+    Name        = "/aws/eks/${local.cluster_name}/cluster"
+    Environment = var.environment
+  }
 }
 
 # EKS Cluster
