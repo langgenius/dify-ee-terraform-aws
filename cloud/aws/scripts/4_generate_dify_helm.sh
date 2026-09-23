@@ -237,6 +237,19 @@ replace_template() {
         log_warning "Re-run scripts/3_post_tf_apply.sh and source the resulting config_*.env to"
         log_warning "pick up the stable key from Terraform state."
     fi
+
+    # Unpadded base64url 32-byte key for agentBackend.serverSecretKey (3.12.0+).
+    # The agent-backend service rejects standard base64 ("+"/"/"/"=") at startup
+    # (pydantic: "must be valid unpadded base64url text"), so APP_SECRET_KEY
+    # cannot be reused. Source of truth is random_bytes.agent_backend_secret_key,
+    # surfaced via terraform output and written to config_*.env by
+    # scripts/3_post_tf_apply.sh. Fallback below is unstable across re-runs.
+    if [ -z "${AGENT_BACKEND_SECRET_KEY:-}" ]; then
+        AGENT_BACKEND_SECRET_KEY=$(openssl rand 32 | base64 | tr '+/' '-_' | tr -d '=')
+        log_warning "AGENT_BACKEND_SECRET_KEY was not set in the sourced config.env."
+        log_warning "Generated a random one as a fallback. Re-run scripts/3_post_tf_apply.sh and"
+        log_warning "source the resulting config_*.env to pick up the stable key from Terraform state."
+    fi
     
     # Prepare AWS service suffix (used for ECR repo URL and ARN rendering).
     # S3 endpoint is intentionally hardcoded to "" in templates — setting it
@@ -256,6 +269,7 @@ replace_template() {
     sed -i.bak "s|{{deployment_id}}|${DEPLOYMENT_ID:-}|g" "$temp_file"
     sed -i.bak "s|{{secret_key}}|${APP_SECRET_KEY}|g" "$temp_file"
     sed -i.bak "s|{{password_encryption_key}}|${PASSWORD_ENCRYPTION_KEY}|g" "$temp_file"
+    sed -i.bak "s|{{agent_backend_secret_key}}|${AGENT_BACKEND_SECRET_KEY}|g" "$temp_file"
     
     # S3 related ({{s3_endpoint}} is intentionally absent — templates hardcode "")
     sed -i.bak "s|{{s3_bucket}}|${S3_BUCKET_NAME:-}|g" "$temp_file"

@@ -40,6 +40,11 @@ output "eks_cluster_security_group_id" {
   value       = aws_eks_cluster.main.vpc_config[0].cluster_security_group_id
 }
 
+output "eks_cluster_log_group_name" {
+  description = "Terraform-managed CloudWatch log group for EKS control-plane logs (retention = eks_log_retention_days)"
+  value       = aws_cloudwatch_log_group.eks_cluster.name
+}
+
 output "ecr_repository_url" {
   description = "ECR repository URL"
   value       = aws_ecr_repository.dify.repository_url
@@ -246,5 +251,17 @@ output "autoscaling_status" {
 output "password_encryption_key" {
   description = "AES-256 base64 key for enterprise.passwordEncryptionKey. Generated and persisted in TF state; stable across applies."
   value       = random_bytes.password_encryption_key.base64
+  sensitive   = true
+}
+
+output "agent_backend_secret_key" {
+  description = "Unpadded base64url key for agentBackend.serverSecretKey (chart 3.12.0+). Generated and persisted in TF state; stable across applies."
+  value       = replace(replace(replace(random_bytes.agent_backend_secret_key.base64, "+", "-"), "/", "_"), "=", "")
+  sensitive   = true
+}
+
+output "app_secret_key" {
+  description = "Base64 key for global.appSecretKey / {{secret_key}} placeholder. Generated and persisted in TF state; stable across applies."
+  value       = random_bytes.app_secret_key.base64
   sensitive   = true
 }

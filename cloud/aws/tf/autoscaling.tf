@@ -261,7 +261,9 @@ resource "kubernetes_horizontal_pod_autoscaler_v2" "dify" {
   for_each = local.hpa_configs
 
   metadata {
-    name      = "dify-${each.key}-hpa"
+    # replace(): map keys like "plugin_daemon" would otherwise produce an
+    # invalid DNS-1123 object name (underscores are rejected at apply time).
+    name      = "dify-${replace(each.key, "_", "-")}-hpa"
     namespace = "dify"
   }
 

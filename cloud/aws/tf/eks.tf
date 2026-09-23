@@ -100,6 +100,30 @@ resource "aws_kms_alias" "eks_secrets" {
   target_key_id = aws_kms_key.eks_secrets.key_id
 }
 
+# Control-plane log group, pre-created so Terraform owns it.
+# When enabled_cluster_log_types is set, EKS auto-creates
+# /aws/eks/<cluster>/cluster OUTSIDE Terraform on first log delivery —
+# never-expiring retention, survives terraform destroy, bills silently.
+# Creating it here first (EKS reuses an existing group) puts it in state:
+# retention is enforced and destroy removes it. The cluster resource must
+# depend on it, or EKS wins the race and creates its own.
+# Destroy caveat: TF deletes this group before the cluster finishes deleting;
+# EKS may flush final control-plane logs afterward and re-create a small
+# orphan group — the teardown orphan scan (SKILL.md B.5) still checks for it.
+# Upgrading an EXISTING deployment: EKS already auto-created this group outside
+# Terraform, so the first apply fails with ResourceAlreadyExistsException.
+# Adopt it first:
+#   terraform import aws_cloudwatch_log_group.eks_cluster /aws/eks/dify-<deployment_id>-eks-cluster/cluster
+resource "aws_cloudwatch_log_group" "eks_cluster" {
+  name              = "/aws/eks/${local.cluster_name}/cluster"
+  retention_in_days = var.eks_log_retention_days
+
+  tags = {
+    Name        = "/aws/eks/${local.cluster_name}/cluster"
+    Environment = var.environment
+  }
+}
+
 # EKS Cluster
 # tfsec:ignore:aws-eks-no-public-cluster-access -- public endpoint is gated on elb_mode == "internet-facing"
 # tfsec:ignore:aws-eks-no-public-cluster-access-to-cidr -- public_access_cidrs tightening tracked separately; default allow is intentional in internet-facing mode
@@ -109,7 +133,6 @@ resource "aws_eks_cluster" "main" {
   version  = var.cluster_version
 
   enabled_cluster_log_types = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
-
   encryption_config {
     provider {
       key_arn = aws_kms_key.eks_secrets.arn
@@ -128,7 +151,10 @@ resource "aws_eks_cluster" "main" {
   }
 
   depends_on = [
-    aws_iam_role_policy_attachment.eks_cluster_policy
+    aws_iam_role_policy_attachment.eks_cluster_policy,
+    # Log group must exist before EKS starts logging, or EKS creates its own
+    # unmanaged /aws/eks/<cluster>/cluster group (see aws_cloudwatch_log_group above).
+    aws_cloudwatch_log_group.eks_cluster,
   ]
 
   tags = {
@@ -238,6 +264,12 @@ resource "aws_eks_node_group" "main" {
   node_role_arn   = aws_iam_role.eks_node_group.arn
   subnet_ids      = local.node_subnets
 
+  # Pin the node AMI Kubernetes version to the control plane version so
+  # cluster upgrades also roll the nodes (otherwise nodes silently stay on
+  # the version the group was created with, drifting toward the kubelet
+  # n-3 skew limit).
+  version = var.cluster_version
+
   scaling_config {
     desired_size = local.node_config.desired_size
     max_size     = local.node_config.max_size
@@ -273,37 +305,10 @@ resource "aws_eks_node_group" "main" {
   )
 }
 
-# ──────────────── Dynamic Tag Management ────────────────
-# Add Kubernetes cluster tags to VPC resources after EKS cluster is created
-# Note: These tags are only applied when creating a new VPC (use_existing_vpc = false)
-# For existing VPC, tags are managed in vpc.tf and controlled by auto_tag_subnets variable
-
-# Tag VPC with cluster information (only if VPC is created by this module)
-resource "aws_ec2_tag" "vpc_cluster_tag" {
-  count       = local.create_vpc ? 1 : 0
-  resource_id = local.create_vpc ? aws_vpc.main[0].id : ""
-  key         = "kubernetes.io/cluster/${local.cluster_name}"
-  value       = "shared"
-
-  depends_on = [aws_eks_cluster.main]
-}
-
-# Tag public subnets with cluster information
-resource "aws_ec2_tag" "public_subnet_cluster_tags" {
-  count       = local.create_vpc ? length(local.availability_zones) : 0
-  resource_id = local.create_vpc ? aws_subnet.public[count.index].id : ""
-  key         = "kubernetes.io/cluster/${local.cluster_name}"
-  value       = "shared"
-
-  depends_on = [aws_eks_cluster.main]
-}
-
-# Tag private subnets with cluster information
-resource "aws_ec2_tag" "private_subnet_cluster_tags" {
-  count       = local.create_vpc ? length(local.availability_zones) : 0
-  resource_id = local.create_vpc ? aws_subnet.private[count.index].id : ""
-  key         = "kubernetes.io/cluster/${local.cluster_name}"
-  value       = "shared"
-
-  depends_on = [aws_eks_cluster.main]
-}
+# ──────────────── Cluster tags on module-created VPC resources ────────────────
+# The kubernetes.io/cluster/<name> = "shared" tag for the module-created VPC and
+# subnets is set INLINE in vpc.tf (aws_vpc.main / aws_subnet.public|private.tags).
+# It must not also be managed here via aws_ec2_tag: two owners of the same tag key
+# make every plan flap (aws_ec2_tag re-adds it, the inline tags strip it).
+# For an existing VPC (use_existing_vpc = true), tags are managed in vpc.tf via
+# aws_ec2_tag.existing_* and controlled by the auto_tag_subnets variable.

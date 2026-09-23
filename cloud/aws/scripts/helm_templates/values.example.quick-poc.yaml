@@ -28,10 +28,11 @@
 # Note: Approximate 17G Disk Space will be used, please make sure you have enough space in nodes.
 #       Each unstructured replica will use approx. 8.4G Disk Space.
 ###################################
-# Profile: quick-poc (HPA off)
+# Profile: quick-poc (HPA off — set enable_hpa = false in terraform.tfvars)
 # - All deployments use static replicas = 1 for minimal footprint.
-# - Assumes enable_hpa = false in terraform.tfvars (the default).
-# - If HPA is enabled on this cluster, static replicas below are overridden by HPA.
+# - No resources.requests are set, so HPA CANNOT work with this profile
+#   (HPA needs CPU/memory requests to compute utilization; targets stay
+#   <unknown>). Use the test or prod profile to exercise HPA.
 ###################################
 global:
   appSecretKey: '{{secret_key}}'
@@ -82,6 +83,9 @@ worker:
 #     replicas: 1
 #     celeryQueues: "workflow,workflow_storage,workflow_based_app_execution"
 #     celeryWorkerAmount: 2
+#
+# Still required at chart 3.12.0: the chart default continues to ship
+# trigger-worker enabled with no IRSA service account.
 additionalWorkers:
   - name: trigger-worker
     enabled: false
@@ -142,6 +146,24 @@ plugin_connector:
 gateway:
   replicas: 1
 
+# ── New in chart 3.10.x–3.12.x ─────────────────────────
+# agent-backend (new in 3.12.0): backend for Dify Agent apps. Enabled by
+# default in the chart. The chart ships a PUBLIC default serverSecretKey;
+# always override it.
+agentBackend:
+  replicas: 1
+  serverSecretKey: "{{agent_backend_secret_key}}"
+
+# enterprise-rbac (new in 3.11.0): workspace RBAC gRPC service. Required.
+enterpriseRbac:
+  replicas: 1
+
+# Kubernetes Agent Sandbox (new in 3.12.0). Keep disabled unless the
+# kubernetes-sigs/agent-sandbox controller + CRDs are installed BEFORE the
+# chart upgrade — otherwise helm fails creating SandboxTemplate/SandboxWarmPool.
+sandboxGateway:
+  enabled: false
+
 
 ###################################
 # Persistent Storage Configuration
@@ -164,7 +186,7 @@ persistence:
 
 
 ###################################
-# External Database Configuration (Dify chart 3.9.x schema)
+# External Database Configuration (Dify chart 3.9.x–3.12.x schema)
 ###################################
 externalDatabase:
   enabled: true

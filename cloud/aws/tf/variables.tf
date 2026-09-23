@@ -152,9 +152,19 @@ variable "cert_manager_version" {
 # ──────────────── Infrastructure Configuration ────────────────
 
 variable "cluster_version" {
-  description = "EKS cluster version"
+  description = "EKS cluster version. Keep on a STANDARD_SUPPORT version (aws eks describe-cluster-versions) — extended-support versions bill $0.60/cluster/hour instead of $0.10."
   type        = string
-  default     = "1.28"
+  default     = "1.36"
+}
+
+variable "eks_log_retention_days" {
+  description = "Retention in days for the EKS control-plane CloudWatch log group (/aws/eks/<cluster>/cluster). The audit stream alone can produce >1 GB/day even on an idle cluster."
+  type        = number
+  default     = 30
+  validation {
+    condition     = contains([0, 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.eks_log_retention_days)
+    error_message = "eks_log_retention_days must be a CloudWatch-supported retention value (0 = never expire)."
+  }
 }
 
 variable "eks_arch" {
@@ -490,17 +500,17 @@ variable "install_cluster_autoscaler" {
 variable "cluster_autoscaler_version" {
   description = "Cluster Autoscaler Helm chart version"
   type        = string
-  default     = "9.35.0"
+  default     = "9.59.0"
 }
 
 variable "cluster_autoscaler_image_tag" {
-  description = "Cluster Autoscaler image tag (must match EKS cluster version, e.g., v1.28.5 for EKS 1.28)"
+  description = "Cluster Autoscaler image tag (must match EKS cluster version, e.g., v1.36.1 for EKS 1.36)"
   type        = string
-  default     = "v1.28.5"
+  default     = "v1.36.1"
 
   validation {
     condition     = can(regex("^v[0-9]+\\.[0-9]+\\.[0-9]+$", var.cluster_autoscaler_image_tag))
-    error_message = "cluster_autoscaler_image_tag must be in format v1.28.5 (semantic version with 'v' prefix)."
+    error_message = "cluster_autoscaler_image_tag must be in format v1.36.1 (semantic version with 'v' prefix)."
   }
 }
 
@@ -581,12 +591,15 @@ variable "hpa_config" {
   }))
 
   default = {
+    # api is CPU-only on purpose: the Python/gunicorn RSS baseline (~430Mi at
+    # idle, never released) dominates memory utilization, so a memory target
+    # tracks baseline growth instead of business load and ratchets replicas up
+    # without traffic. CPU tracks request volume directly.
     api = {
-      enabled                   = true
-      min_replicas              = 2
-      max_replicas              = 10
-      target_cpu_utilization    = 70
-      target_memory_utilization = 80
+      enabled                = true
+      min_replicas           = 2
+      max_replicas           = 10
+      target_cpu_utilization = 70
     }
     worker = {
       enabled                = true
@@ -612,6 +625,12 @@ variable "hpa_config" {
       min_replicas           = 1
       max_replicas           = 10
       target_cpu_utilization = 80
+      # Sandbox pods report Ready before their python-dependency init finishes and
+      # burn ~1 CPU against a 100m request for 2-4 min. With a 0s window this
+      # self-inflicted burn snowballs to maxReplicas on every install/rollout/node
+      # eviction and oscillates with cluster-autoscaler (observed: 130+ rescales
+      # in 19h). 300s outlasts the init burn; tradeoff: real bursts wait up to 300s.
+      scale_up_stabilization_window = 300
     }
     enterprise = {
       enabled                = false
@@ -635,6 +654,20 @@ variable "hpa_config" {
     plugin_connector = {
       enabled                = false
       deployment_name        = "dify-plugin-connector"
+      min_replicas           = 1
+      max_replicas           = 4
+      target_cpu_utilization = 70
+    }
+    agent_backend = {
+      enabled                = false
+      deployment_name        = "dify-agent-backend"
+      min_replicas           = 1
+      max_replicas           = 4
+      target_cpu_utilization = 70
+    }
+    enterprise_rbac = {
+      enabled                = false
+      deployment_name        = "dify-enterprise-rbac"
       min_replicas           = 1
       max_replicas           = 4
       target_cpu_utilization = 70

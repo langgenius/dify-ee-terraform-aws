@@ -77,12 +77,12 @@ terraform apply tfplan
 ```bash
 # 1. 验证基础设施状态
 
-bash bash scripts/2_verify_tf_deployment.sh
+bash scripts/2_verify_tf_deployment.sh
 
 # 2. 生成 Dify 部署配置
-bash bash scripts/3_post_tf_apply.sh
+bash scripts/3_post_tf_apply.sh
 
-bash bash scripts/4_generate_dify_helm.sh
+bash scripts/4_generate_dify_helm.sh
 
 # 编辑你自己的 value.yaml 文件，可以参考提供的 values.*.yaml 示例。
 
