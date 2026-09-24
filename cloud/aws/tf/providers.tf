@@ -2,8 +2,12 @@ terraform {
   required_version = ">= 1.0"
   required_providers {
     aws = {
+      # >= 6.24.0: aws_nat_gateway gained availability_mode / vpc_id /
+      # regional_nat_gateway_address for Regional NAT Gateway support. These are
+      # parsed even when nat_availability_mode = "zonal" leaves count = 0, so
+      # older 6.x versions fail at terraform validate.
       source  = "hashicorp/aws"
-      version = "~> 6.3"
+      version = ">= 6.24.0, < 7.0.0"
     }
     kubernetes = {
       source  = "hashicorp/kubernetes"

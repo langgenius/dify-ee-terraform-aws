@@ -64,6 +64,17 @@ variable "elb_mode" {
   }
 }
 
+# NAT Gateway availability mode (only applies when creating a new VPC)
+variable "nat_availability_mode" {
+  description = "NAT Gateway availability mode: 'zonal' (single-AZ, current behavior) or 'regional' (multi-AZ HA, recommended for prod). Only applies when use_existing_vpc = false. Regional NAT Gateway is a commercial-region feature, so this is forced to 'zonal' in AWS China (cn-*) and GovCloud (us-gov-*) regions. Requires AWS provider >= 6.24.0."
+  type        = string
+  default     = "zonal"
+  validation {
+    condition     = contains(["zonal", "regional"], var.nat_availability_mode)
+    error_message = "nat_availability_mode must be either 'zonal' or 'regional'."
+  }
+}
+
 # Deprecated: Use existing_vpc_subnets instead
 # These are kept for backward compatibility
 variable "eks_cluster_subnets" {

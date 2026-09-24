@@ -102,6 +102,28 @@ vpc_cidr         = "10.0.0.0/16"
 #   Public subnets:  kubernetes.io/cluster/dify-<deployment_id>-eks-cluster = shared
 #                    kubernetes.io/role/elb = 1
 
+# ── NAT Gateway Availability Mode (only applies when use_existing_vpc = false) ──
+# Controls how outbound (egress) traffic from private subnets reaches the internet.
+# All Dify outbound traffic (LLM provider APIs, plugin marketplace, license server) goes through it.
+nat_availability_mode = "zonal"  # Options: "zonal" | "regional"
+#   - "zonal"    : One NAT Gateway in a single AZ (default, current behavior, lowest cost).
+#                  An outage in that AZ takes down all outbound traffic.
+#   - "regional" : One Regional NAT Gateway that AWS automatically spreads across AZs,
+#                  following your workload ENIs. Removes the single-AZ egress SPOF.
+#                  Recommended for environment = "prod".
+#
+# Notes:
+# ✓ Requires AWS provider >= 6.24.0 (already enforced in providers.tf).
+# ✓ Regional mode manages its own Elastic IPs; the aws_eip.nat resource is not created.
+#   AWS may hold up to 32 IPs per AZ and adds/removes them as it expands across AZs,
+#   so the egress IP set is NOT stable. If a third party needs a fixed allowlist,
+#   stay on "zonal". See changelog-2026-08-08-regional-nat-gateway/DOC:*.md.
+# ✓ Regional NAT Gateway is a commercial-region feature. In AWS China (cn-*) and
+#   GovCloud (us-gov-*) regions the value is forced to "zonal" automatically, so
+#   setting "regional" there is safe but has no effect.
+# ✓ Switching modes on an existing deployment replaces the NAT Gateway and resets
+#   in-flight connections. Do it in a maintenance window.
+
 # ── ELB Exposure Mode ──
 # Determines whether the load balancer is accessible from internet or only within VPC
 elb_mode = "internet-facing"  # Options: "internet-facing" | "internal"

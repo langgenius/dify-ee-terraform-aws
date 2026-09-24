@@ -33,6 +33,7 @@ Before running `terraform apply`, replace the following placeholders in `cloud/a
 | `vpc_cidr` | `"10.0.0.0/16"` | Only used when `use_existing_vpc = false` |
 | `vpc_id` + `existing_vpc_subnets` | `"vpc-xxxxxxxx"` + subnet ID list | Only used when `use_existing_vpc = true`; requires at least 2 private subnets in different AZs |
 | `elb_mode` | `"internet-facing"` or `"internal"` | Load balancer exposure mode |
+| `nat_availability_mode` | `"zonal"` (default) or `"regional"` | Only used when `use_existing_vpc = false`. `"regional"` provisions a multi-AZ Regional NAT Gateway, removing the single-AZ egress SPOF — recommended for `environment = "prod"`. Forced to `"zonal"` in China (`cn-*`) and GovCloud (`us-gov-*`) regions. Requires AWS provider >= 6.24.0; existing deployments must run `terraform init -upgrade` |
 | `db_master_password` | **replace with strong password** | Aurora master password — do NOT keep the sample value |
 | `opensearch_master_user_password` | **replace with strong password** | OpenSearch master password — do NOT keep the sample value |
 
