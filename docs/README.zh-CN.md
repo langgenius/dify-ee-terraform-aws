@@ -93,7 +93,9 @@ helm repo update
 helm search repo dify/dify
 
 # 4. 安装 Dify
-helm upgrade -i dify -f values.yaml dify/dify -n dify
+# --version 填 4_generate_dify_helm.sh 中所选的 Helm Chart 版本（脚本会打印完整命令）。
+# 不带 --version 时 Helm 会安装最新 Chart，可能与 values.yaml 中写入的镜像 tag 不匹配。
+helm upgrade -i dify -f values.yaml dify/dify --version <chart-version> -n dify
 
 
 # 更多信息详见：https://langgenius.github.io/dify-helm/#/
@@ -169,8 +171,8 @@ terraform refresh
 
 ### 配置更新
 ```bash
-# 更新 Helm 部署
-helm upgrade dify -f dify_values_*.yaml dify/dify -n dify
+# 更新 Helm 部署（使用与 values 文件中镜像 tag 对应的 Chart 版本）
+helm upgrade dify -f dify_values_*.yaml dify/dify --version <chart-version> -n dify
 ```
 
 ### 基础设施更新

@@ -93,7 +93,10 @@ helm repo update
 helm search repo dify/dify
 
 # 4. Install Dify
-helm upgrade -i dify -f values.yaml dify/dify -n dify
+# Pin --version to the Helm chart version you selected in 4_generate_dify_helm.sh
+# (the script prints the exact command). Without --version, Helm installs the
+# latest chart, which may not match the image tags written into values.yaml.
+helm upgrade -i dify -f values.yaml dify/dify --version <chart-version> -n dify
 
 # For more information, visit https://langgenius.github.io/dify-helm/#/
 ```
@@ -163,8 +166,8 @@ terraform refresh
 
 ### Configuration Updates
 ```bash
-# Update Helm deployment
-helm upgrade dify -f dify_values_*.yaml dify/dify -n dify
+# Update Helm deployment (use the chart version that matches the image tags in your values file)
+helm upgrade dify -f dify_values_*.yaml dify/dify --version <chart-version> -n dify
 ```
 
 ### Infrastructure Updates

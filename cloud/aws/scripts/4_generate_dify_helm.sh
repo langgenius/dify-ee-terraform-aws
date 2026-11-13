@@ -24,6 +24,8 @@ CN_IMAGE_MIRROR_PREFIX="g-hsod9681-docker.pkg.coding.net/dify-artifact/dify"
 DEFAULT_CLUSTER_ARCH="amd64"
 WATCHDOG_FORCE_ARM64_TAGS=0
 CLUSTER_ARCHITECTURE=""
+# Helm chart version whose image tags were written into the values files (set by run_watchdog_stage)
+SELECTED_CHART_VERSION=""
 
 # Color definitions
 GREEN='\033[0;32m'
@@ -587,6 +589,7 @@ run_watchdog_stage() {
         fi
     done
     if [ $updated_count -gt 0 ]; then
+        SELECTED_CHART_VERSION="$selected_version"
         log_info "Watchdog synchronization complete for $updated_count file(s). Review the updated image tags before deploying."
     else
         log_warning "Watchdog synchronization did not update any files."
@@ -730,6 +733,9 @@ main() {
     log_info "Generated files:"
     ls -la "$output_dir"/*.yaml | awk '{print "  - " $NF}'
     
+    # Sync image tags first so the install command below can pin the matching chart version
+    run_watchdog_stage "$output_dir"
+    
     # Add explanation of different YAML configurations
     echo
     echo -e "${BOLD}${BLUE}📋 Configuration Files Overview:${NC}"
@@ -739,10 +745,13 @@ main() {
     echo
     echo -e "${BOLD}💡 Next Steps:${NC}"
     echo -e "   Choose the appropriate configuration file based on your deployment environment"
-    echo -e "   and apply it using: ${BLUE}helm upgrade -i dify -f <selected-values-file> dify/dify -n dify ${NC}"
+    if [ -n "$SELECTED_CHART_VERSION" ]; then
+        echo -e "   and apply it using: ${BLUE}helm upgrade -i dify -f <selected-values-file> dify/dify --version ${SELECTED_CHART_VERSION} -n dify ${NC}"
+        echo -e "   Keep ${BOLD}--version ${SELECTED_CHART_VERSION}${NC} so the chart matches the image tags written into the values files."
+    else
+        echo -e "   and apply it using: ${BLUE}helm upgrade -i dify -f <selected-values-file> dify/dify -n dify ${NC}"
+    fi
     echo
-    
-    run_watchdog_stage "$output_dir"
 }
 
 # Run main function
