@@ -74,11 +74,11 @@ helm repo update
 # Search available versions
 helm search repo dify/dify
 
-# Install Dify (after generating values.yaml)
-helm upgrade -i dify -f values.yaml dify/dify -n dify
+# Install Dify (after generating values.yaml); pin the chart version selected in 4_generate_dify_helm.sh
+helm upgrade -i dify -f values.yaml dify/dify --version <chart-version> -n dify
 
 # Update existing deployment
-helm upgrade dify -f values.yaml dify/dify -n dify
+helm upgrade dify -f values.yaml dify/dify --version <chart-version> -n dify
 ```
 
 ### AWS/Kubernetes Operations
